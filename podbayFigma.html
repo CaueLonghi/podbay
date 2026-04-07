@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="pt-BR" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PODBAY Vape</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+  <script src="/_sdk/element_sdk.js"></script>
+  <script src="/_sdk/data_sdk.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Playfair+Display:wght@700&amp;display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; font-family: 'DM Sans', sans-serif; }
+    .page { display: none; }
+    .page.active { display: flex; flex-direction: column; }
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    .tab-active { color: #a78bfa; }
+    .tab-inactive { color: #6b7280; }
+    .cat-active { background: #a78bfa; color: #1f1f2e; }
+    .cat-inactive { background: #2d2d3d; color: #9ca3af; }
+    .qty-btn { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; cursor: pointer; border: none; }
+    .toast-msg { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #1f1f2e; color: #fff; padding: 10px 20px; border-radius: 12px; font-size: 14px; z-index: 999; opacity: 0; transition: opacity .3s; pointer-events: none; }
+    .toast-msg.show { opacity: 1; }
+    @keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .anim-item { animation: slideUp .35s ease both; }
+    .vape-card { border: 1px solid #3d3d4d; }
+    .vape-product { background: #1f1f2e; border: 1px solid #3d3d4d; color: #e5e7eb; }
+    .vape-product-name { color: #e5e7eb; }
+    .vape-button { background: linear-gradient(135deg, #a78bfa, #7c3aed); }
+  </style>
+  <style>body { box-sizing: border-box; }</style>
+ </head>
+ <body class="h-full">
+  <div id="app" class="h-full w-full overflow-auto flex flex-col relative" style="max-width:480px;margin:0 auto;background:#0f0f1e;color:#e5e7eb;">
+   <div id="toast" class="toast-msg"></div><!-- HOME PAGE -->
+   <div id="page-home" class="page active h-full">
+    <div class="flex-1 overflow-auto hide-scrollbar pb-24 px-5 pt-6">
+     <!-- Header -->
+     <div class="flex items-center justify-between mb-6 mt-2">
+      <div>
+       <p class="text-xs opacity-60" id="welcome-label">Bem-vindo 👋</p>
+       <h1 class="text-3xl font-bold" id="app-title-label" style="color:#a78bfa;">PODBAY</h1>
+      </div>
+      <div class="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer" onclick="goTo('profile')" style="background:#a78bfa;">
+       <i data-lucide="user" style="width:20px;height:20px;color:#1f1f2e;"></i>
+      </div>
+     </div><!-- Search -->
+     <div class="relative mb-5">
+      <i data-lucide="search" style="width:18px;height:18px;color:#6b7280;position:absolute;left:14px;top:50%;transform:translateY(-50%);"></i> <input type="text" id="search-input" placeholder="Buscar sabores, marcas..." class="w-full rounded-2xl pl-11 pr-4 py-3 text-sm border focus:outline-none" style="background:#1f1f2e;color:#e5e7eb;border-color:#3d3d4d;" oninput="filterProducts()">
+     </div><!-- Promo Banner -->
+     <div class="rounded-3xl p-5 mb-6 relative overflow-hidden" style="background: linear-gradient(135deg, #a78bfa 0%, #7c3aed 100%);">
+      <p class="text-xs font-medium opacity-80" style="color:#1f1f2e;">Oferta Exclusiva</p>
+      <p class="text-lg font-bold mt-1 leading-tight" id="promo-label" style="color:#1f1f2e;max-width:65%;">50% OFF em selecionados!</p>
+      <div class="mt-3 rounded-full px-4 py-1.5 inline-block" style="background:#1f1f2e;">
+       <span class="text-xs font-bold" style="color:#a78bfa;">COMPRE AGORA</span>
+      </div>
+      <div style="position:absolute;right:-10px;bottom:-10px;width:100px;height:100px;border-radius:50%;background:rgba(31,31,46,.3);"></div>
+      <div style="position:absolute;right:30px;top:-20px;width:60px;height:60px;border-radius:50%;background:rgba(31,31,46,.2);"></div>
+     </div><!-- Categories -->
+     <div class="flex gap-3 mb-5 overflow-x-auto hide-scrollbar">
+      <button class="cat-active rounded-full px-4 py-2 text-sm font-semibold whitespace-nowrap flex-shrink-0 border-none cursor-pointer" onclick="selectCat(this,'all')">💨 Todos</button> <button class="cat-inactive rounded-full px-4 py-2 text-sm font-semibold whitespace-nowrap flex-shrink-0 border-none cursor-pointer" onclick="selectCat(this,'pods')">🔴 Pods</button> <button class="cat-inactive rounded-full px-4 py-2 text-sm font-semibold whitespace-nowrap flex-shrink-0 border-none cursor-pointer" onclick="selectCat(this,'bateria')">🔋 Baterias</button> <button class="cat-inactive rounded-full px-4 py-2 text-sm font-semibold whitespace-nowrap flex-shrink-0 border-none cursor-pointer" onclick="selectCat(this,'liquido')">💧 Líquidos</button> <button class="cat-inactive rounded-full px-4 py-2 text-sm font-semibold whitespace-nowrap flex-shrink-0 border-none cursor-pointer" onclick="selectCat(this,'acessorio')">⚙️ Acessórios</button>
+     </div><!-- Products -->
+     <h2 class="text-base font-bold mb-3" style="color:#a78bfa;">Populares</h2>
+     <div id="products-grid" class="grid grid-cols-2 gap-3"></div>
+    </div>
+   </div><!-- CART PAGE -->
+   <div id="page-cart" class="page h-full">
+    <div class="flex-1 overflow-auto hide-scrollbar pb-24 px-5 pt-6">
+     <div class="flex items-center gap-3 mb-5">
+      <div class="w-9 h-9 rounded-xl flex items-center justify-center shadow-sm cursor-pointer" onclick="goTo('home')" style="background:#1f1f2e;">
+       <i data-lucide="arrow-left" style="width:18px;height:18px;color:#a78bfa;"></i>
+      </div>
+      <h1 class="text-xl font-bold" style="color:#a78bfa;">Carrinho</h1>
+     </div>
+     <div id="cart-items"></div>
+     <div id="cart-empty" class="text-center py-16">
+      <div class="text-5xl mb-3">
+       🛒
+      </div>
+      <p class="font-medium" style="color:#9ca3af;">Seu carrinho está vazio</p>
+      <p class="text-sm mt-1" style="color:#6b7280;">Adicione itens deliciosos!</p>
+     </div>
+     <div id="cart-summary" class="hidden mt-5 rounded-2xl p-4 shadow-sm" style="background:#1f1f2e;border:1px solid #3d3d4d;">
+      <div class="flex justify-between text-sm mb-2" style="color:#9ca3af;"><span>Subtotal</span><span id="cart-subtotal">R$ 0,00</span>
+      </div>
+      <div class="flex justify-between text-sm mb-3" style="color:#9ca3af;"><span>Entrega</span><span class="font-medium" style="color:#a78bfa;">Grátis</span>
+      </div>
+      <div class="border-t pt-3 flex justify-between font-bold" style="border-color:#3d3d4d;color:#e5e7eb;"><span>Total</span><span id="cart-total">R$ 0,00</span>
+      </div><button class="w-full mt-4 py-3.5 rounded-2xl text-white font-bold text-sm border-none cursor-pointer" style="background:linear-gradient(135deg,#a78bfa,#7c3aed);" onclick="finishOrder()">Finalizar Pedido</button>
+     </div>
+    </div>
+   </div><!-- PROFILE PAGE -->
+   <div id="page-profile" class="page h-full">
+    <div class="flex-1 overflow-auto hide-scrollbar pb-24 px-5 pt-6">
+     <div class="flex items-center gap-3 mb-6">
+      <div class="w-9 h-9 rounded-xl flex items-center justify-center shadow-sm cursor-pointer" onclick="goTo('home')" style="background:#1f1f2e;">
+       <i data-lucide="arrow-left" style="width:18px;height:18px;color:#a78bfa;"></i>
+      </div>
+      <h1 class="text-xl font-bold" style="color:#a78bfa;">Meu Perfil</h1>
+     </div><!-- Avatar -->
+     <div class="flex flex-col items-center mb-6">
+      <div class="w-20 h-20 rounded-full flex items-center justify-center text-3xl" style="background: linear-gradient(135deg, #a78bfa, #7c3aed);">
+       👤
+      </div>
+      <p class="mt-3 font-bold text-lg" id="profile-name-display" style="color:#e5e7eb;">-</p>
+     </div><!-- Form -->
+     <form id="profile-form" class="space-y-4" onsubmit="return false;">
+      <div>
+       <label class="text-xs font-semibold mb-1 block" style="color:#9ca3af;">Nome Completo</label>
+       <div class="relative">
+        <i data-lucide="user" style="width:16px;height:16px;color:#9ca3af;position:absolute;left:12px;top:50%;transform:translateY(-50%);"></i> <input id="p-name" type="text" placeholder="Seu nome" class="w-full rounded-xl pl-10 pr-4 py-3 text-sm border focus:outline-none" style="background:#1f1f2e;color:#e5e7eb;border-color:#3d3d4d;focus-within: border-color:#a78bfa;">
+       </div>
+      </div>
+      <div>
+       <label class="text-xs font-semibold mb-1 block" style="color:#9ca3af;">CEP</label>
+       <div class="relative">
+        <i data-lucide="map-pin" style="width:16px;height:16px;color:#9ca3af;position:absolute;left:12px;top:50%;transform:translateY(-50%);"></i> <input id="p-cep" type="text" placeholder="00000-000" maxlength="9" class="w-full rounded-xl pl-10 pr-4 py-3 text-sm border focus:outline-none" style="background:#1f1f2e;color:#e5e7eb;border-color:#3d3d4d;" oninput="maskCep(this)">
+       </div>
+      </div>
+      <div>
+       <label class="text-xs font-semibold mb-1 block" style="color:#9ca3af;">Endereço</label>
+       <div class="relative">
+        <i data-lucide="home" style="width:16px;height:16px;color:#9ca3af;position:absolute;left:12px;top:50%;transform:translateY(-50%);"></i> <input id="p-address" type="text" placeholder="Rua, Bairro, Cidade" class="w-full rounded-xl pl-10 pr-4 py-3 text-sm border focus:outline-none" style="background:#1f1f2e;color:#e5e7eb;border-color:#3d3d4d;">
+       </div>
+      </div>
+      <div>
+       <label class="text-xs font-semibold mb-1 block" style="color:#9ca3af;">Número</label>
+       <div class="relative">
+        <i data-lucide="hash" style="width:16px;height:16px;color:#9ca3af;position:absolute;left:12px;top:50%;transform:translateY(-50%);"></i> <input id="p-number" type="text" placeholder="Nº" class="w-full rounded-xl pl-10 pr-4 py-3 text-sm border focus:outline-none" style="background:#1f1f2e;color:#e5e7eb;border-color:#3d3d4d;">
+       </div>
+      </div><button type="button" onclick="saveProfile()" class="w-full py-3.5 rounded-2xl text-white font-bold text-sm border-none cursor-pointer" style="background:linear-gradient(135deg,#a78bfa,#7c3aed);"> Salvar Informações </button>
+     </form>
+    </div>
+   </div><!-- Bottom Navigation -->
+   <nav class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full border-t flex justify-around py-2 z-50" style="max-width:480px;background:#0f0f1e;border-color:#3d3d4d;">
+    <button id="tab-home" class="flex flex-col items-center gap-0.5 bg-transparent border-none cursor-pointer tab-active py-1 px-4" onclick="goTo('home')"> <i data-lucide="home" style="width:22px;height:22px;"></i> <span class="text-[10px] font-semibold">Início</span> </button> <button id="tab-cart" class="flex flex-col items-center gap-0.5 bg-transparent border-none cursor-pointer tab-inactive py-1 px-4 relative" onclick="goTo('cart')"> <i data-lucide="shopping-bag" style="width:22px;height:22px;"></i> <span class="text-[10px] font-semibold">Carrinho</span> <span id="cart-badge" class="hidden absolute -top-0.5 right-2 w-5 h-5 rounded-full text-white text-[10px] font-bold flex items-center justify-center" style="background:#a78bfa;"></span> </button> <button id="tab-profile" class="flex flex-col items-center gap-0.5 bg-transparent border-none cursor-pointer tab-inactive py-1 px-4" onclick="goTo('profile')"> <i data-lucide="user" style="width:22px;height:22px;"></i> <span class="text-[10px] font-semibold">Perfil</span> </button>
+   </nav>
+  </div>
+  <script>
+  // ============ DATA ============
+  const products = [
+    { id:'p1', name:'Pod Mint Fresco', cat:'pods', price:28.90, emoji:'❄️', rating:4.8 },
+    { id:'p2', name:'Pod Berry Suave', cat:'pods', price:31.90, emoji:'🫐', rating:4.6 },
+    { id:'b1', name:'Bateria Ultra', cat:'bateria', price:89.90, emoji:'⚡', rating:4.9 },
+    { id:'b2', name:'Bateria Turbo', cat:'bateria', price:99.90, emoji:'🔋', rating:4.7 },
+    { id:'l1', name:'Líquido Tropical', cat:'liquido', price:42.90, emoji:'🌴', rating:4.5 },
+    { id:'l2', name:'Líquido Morango', cat:'liquido', price:39.90, emoji:'🍓', rating:4.8 },
+    { id:'a1', name:'Case Protetor', cat:'acessorio', price:24.90, emoji:'📱', rating:4.9 },
+    { id:'a2', name:'Carregador USB-C', cat:'acessorio', price:34.90, emoji:'🔌', rating:4.7 },
+  ];
+
+  let cart = []; // local cart state synced with Data SDK
+  let currentCat = 'all';
+  let searchTerm = '';
+
+  // ============ PROFILE (localStorage) ============
+  function loadProfile() {
+    const p = JSON.parse(localStorage.getItem('fd_profile') || '{}');
+    document.getElementById('p-name').value = p.name || '';
+    document.getElementById('p-cep').value = p.cep || '';
+    document.getElementById('p-address').value = p.address || '';
+    document.getElementById('p-number').value = p.number || '';
+    document.getElementById('profile-name-display').textContent = p.name || 'Seu Nome';
+  }
+  function saveProfile() {
+    const data = {
+      name: document.getElementById('p-name').value.trim(),
+      cep: document.getElementById('p-cep').value.trim(),
+      address: document.getElementById('p-address').value.trim(),
+      number: document.getElementById('p-number').value.trim(),
+    };
+    localStorage.setItem('fd_profile', JSON.stringify(data));
+    document.getElementById('profile-name-display').textContent = data.name || 'Seu Nome';
+    showToast('Perfil salvo com sucesso! ✅');
+  }
+  function maskCep(el) {
+    let v = el.value.replace(/\D/g,'');
+    if (v.length > 5) v = v.slice(0,5) + '-' + v.slice(5,8);
+    el.value = v;
+  }
+
+  // ============ NAVIGATION ============
+  function goTo(page) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-' + page).classList.add('active');
+    ['home','cart','profile'].forEach(t => {
+      const btn = document.getElementById('tab-' + t);
+      btn.className = btn.className.replace(/tab-\w+/,'') + (t === page ? ' tab-active' : ' tab-inactive');
+    });
+    if (page === 'cart') renderCart();
+    if (page === 'profile') loadProfile();
+    lucide.createIcons();
+  }
+
+  // ============ PRODUCTS ============
+  function renderProducts() {
+    const grid = document.getElementById('products-grid');
+    const filtered = products.filter(p => {
+      const catMatch = currentCat === 'all' || p.cat === currentCat;
+      const searchMatch = !searchTerm || p.name.toLowerCase().includes(searchTerm);
+      return catMatch && searchMatch;
+    });
+    grid.innerHTML = filtered.map((p, i) => `
+      <div class="rounded-2xl p-3 shadow-sm anim-item vape-product" style="animation-delay:${i * 50}ms">
+        <div class="text-4xl text-center py-3">${p.emoji}</div>
+        <p class="font-bold text-sm truncate vape-product-name">${p.name}</p>
+        <div class="flex items-center gap-1 mt-0.5">
+          <span class="text-yellow-400 text-xs">★</span>
+          <span class="text-xs" style="color:#9ca3af;">${p.rating}</span>
+        </div>
+        <div class="flex items-center justify-between mt-2">
+          <span class="font-bold text-sm" style="color:#a78bfa;">R$ ${p.price.toFixed(2).replace('.',',')}</span>
+          <button onclick="addToCart('${p.id}')" class="w-8 h-8 rounded-full flex items-center justify-center border-none cursor-pointer text-white vape-button font-size:18px;">+</button>
+        </div>
+      </div>
+    `).join('');
+  }
+  function selectCat(btn, cat) {
+    document.querySelectorAll('[onclick^="selectCat"]').forEach(b => { b.className = b.className.replace('cat-active','cat-inactive'); });
+    btn.className = btn.className.replace('cat-inactive','cat-active');
+    currentCat = cat;
+    renderProducts();
+  }
+  function filterProducts() {
+    searchTerm = document.getElementById('search-input').value.toLowerCase().trim();
+    renderProducts();
+  }
+
+  // ============ CART (Data SDK) ============
+  async function addToCart(productId) {
+    const existing = cart.find(c => c.product_id === productId);
+    if (existing) {
+      const r = await window.dataSdk.update({ ...existing, quantity: existing.quantity + 1 });
+      if (!r.isOk) showToast('Erro ao atualizar item');
+    } else {
+      if (cart.length >= 999) { showToast('Limite do carrinho atingido'); return; }
+      const p = products.find(x => x.id === productId);
+      const r = await window.dataSdk.create({ product_id: p.id, product_name: p.name, quantity: 1, price: p.price });
+      if (!r.isOk) showToast('Erro ao adicionar');
+    }
+    showToast('Adicionado ao carrinho! 🛒');
+  }
+  async function changeQty(backendId, delta) {
+    const item = cart.find(c => c.__backendId === backendId);
+    if (!item) return;
+    const newQty = item.quantity + delta;
+    if (newQty <= 0) {
+      await window.dataSdk.delete(item);
+    } else {
+      await window.dataSdk.update({ ...item, quantity: newQty });
+    }
+  }
+
+  function renderCart() {
+    const container = document.getElementById('cart-items');
+    const empty = document.getElementById('cart-empty');
+    const summary = document.getElementById('cart-summary');
+    if (!cart.length) {
+      container.innerHTML = '';
+      empty.classList.remove('hidden');
+      summary.classList.add('hidden');
+      return;
+    }
+    empty.classList.add('hidden');
+    summary.classList.remove('hidden');
+    container.innerHTML = cart.map(c => {
+      const p = products.find(x => x.id === c.product_id);
+      return `<div class="rounded-2xl p-3 mb-3 shadow-sm flex items-center gap-3 vape-product">
+        <div class="text-3xl">${p ? p.emoji : '🍽️'}</div>
+        <div class="flex-1 min-w-0">
+          <p class="font-bold text-sm truncate vape-product-name">${c.product_name}</p>
+          <p class="text-xs font-semibold mt-0.5" style="color:#a78bfa;">R$ ${(c.price * c.quantity).toFixed(2).replace('.',',')}</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button class="qty-btn text-gray-300" style="background:#2d2d3d;" onclick="changeQty('${c.__backendId}',-1)">−</button>
+          <span class="text-sm font-bold w-5 text-center" style="color:#e5e7eb;">${c.quantity}</span>
+          <button class="qty-btn text-white vape-button" onclick="changeQty('${c.__backendId}',1)">+</button>
+        </div>
+      </div>`;
+    }).join('');
+    const total = cart.reduce((s, c) => s + c.price * c.quantity, 0);
+    document.getElementById('cart-subtotal').textContent = 'R$ ' + total.toFixed(2).replace('.',',');
+    document.getElementById('cart-total').textContent = 'R$ ' + total.toFixed(2).replace('.',',');
+  }
+
+  function updateBadge() {
+    const badge = document.getElementById('cart-badge');
+    const count = cart.reduce((s, c) => s + c.quantity, 0);
+    if (count > 0) {
+      badge.textContent = count > 9 ? '9+' : count;
+      badge.classList.remove('hidden');
+      badge.classList.add('flex');
+    } else {
+      badge.classList.add('hidden');
+      badge.classList.remove('flex');
+    }
+  }
+
+  async function finishOrder() {
+    if (!cart.length) return;
+    for (const item of [...cart]) {
+      await window.dataSdk.delete(item);
+    }
+    showToast('Pedido realizado com sucesso! 🎉');
+  }
+
+  // ============ TOAST ============
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2000);
+  }
+
+  // ============ ELEMENT SDK ============
+  const defaultConfig = {
+    background_color: '#0f0f1e',
+    surface_color: '#1f1f2e',
+    text_color: '#e5e7eb',
+    primary_action_color: '#a78bfa',
+    secondary_action_color: '#7c3aed',
+    font_family: 'DM Sans',
+    font_size: 14,
+    app_title: 'PODBAY',
+    welcome_text: 'Bem-vindo 👋',
+    promo_text: '50% OFF em selecionados!'
+  };
+
+  function applyConfig(cfg) {
+    const bg = cfg.background_color || defaultConfig.background_color;
+    const surface = cfg.surface_color || defaultConfig.surface_color;
+    const text = cfg.text_color || defaultConfig.text_color;
+    const primary = cfg.primary_action_color || defaultConfig.primary_action_color;
+    const font = cfg.font_family || defaultConfig.font_family;
+    const sz = cfg.font_size || defaultConfig.font_size;
+
+    document.getElementById('app').style.backgroundColor = bg;
+    document.getElementById('app').style.fontFamily = `${font}, DM Sans, sans-serif`;
+    document.getElementById('app').style.fontSize = sz + 'px';
+    document.getElementById('app-title-label').textContent = cfg.app_title || defaultConfig.app_title;
+    document.getElementById('welcome-label').textContent = cfg.welcome_text || defaultConfig.welcome_text;
+    document.getElementById('promo-label').textContent = cfg.promo_text || defaultConfig.promo_text;
+    document.getElementById('app-title-label').style.color = text;
+  }
+
+  window.elementSdk.init({
+    defaultConfig,
+    onConfigChange: async (cfg) => applyConfig(cfg),
+    mapToCapabilities: (cfg) => ({
+      recolorables: [
+        { get: () => cfg.background_color || defaultConfig.background_color, set: v => { cfg.background_color = v; window.elementSdk.setConfig({ background_color: v }); }},
+        { get: () => cfg.surface_color || defaultConfig.surface_color, set: v => { cfg.surface_color = v; window.elementSdk.setConfig({ surface_color: v }); }},
+        { get: () => cfg.text_color || defaultConfig.text_color, set: v => { cfg.text_color = v; window.elementSdk.setConfig({ text_color: v }); }},
+        { get: () => cfg.primary_action_color || defaultConfig.primary_action_color, set: v => { cfg.primary_action_color = v; window.elementSdk.setConfig({ primary_action_color: v }); }},
+        { get: () => cfg.secondary_action_color || defaultConfig.secondary_action_color, set: v => { cfg.secondary_action_color = v; window.elementSdk.setConfig({ secondary_action_color: v }); }},
+      ],
+      borderables: [],
+      fontEditable: { get: () => cfg.font_family || defaultConfig.font_family, set: v => { cfg.font_family = v; window.elementSdk.setConfig({ font_family: v }); }},
+      fontSizeable: { get: () => cfg.font_size || defaultConfig.font_size, set: v => { cfg.font_size = v; window.elementSdk.setConfig({ font_size: v }); }},
+    }),
+    mapToEditPanelValues: (cfg) => new Map([
+      ['app_title', cfg.app_title || defaultConfig.app_title],
+      ['welcome_text', cfg.welcome_text || defaultConfig.welcome_text],
+      ['promo_text', cfg.promo_text || defaultConfig.promo_text],
+    ])
+  });
+
+  // ============ DATA SDK ============
+  window.dataSdk.init({
+    onDataChanged(data) {
+      cart = data;
+      updateBadge();
+      if (document.getElementById('page-cart').classList.contains('active')) renderCart();
+    }
+  });
+
+  // ============ INIT ============
+  renderProducts();
+  loadProfile();
+  lucide.createIcons();
+</script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9e612a0b04899aa9',t:'MTc3NTE0Njg2MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
