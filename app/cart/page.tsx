@@ -30,7 +30,7 @@ interface Endereco {
   bairro: string;
   cidade: string;
   estado: string;
-  principal: number;
+  principal: boolean;
 }
 
 const emptyForm = { apelido: '', cep: '', logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', estado: 'SP' };
@@ -68,7 +68,7 @@ export default function CartPage() {
   const [form, setForm] = useState(emptyForm);
   const [pedidoPendente, setPedidoPendente] = useState(false);
 
-  const principal = enderecos.find((e) => e.principal === 1) ?? null;
+  const principal = enderecos.find((e) => e.principal === true) ?? null;
 
   const userId = user?.id ?? null;
 
@@ -136,7 +136,7 @@ export default function CartPage() {
         bairro: form.bairro,
         cidade: form.cidade,
         estado: form.estado,
-        principal: 1,
+        principal: true,
       };
       setEnderecos([novo]);
       setForm(emptyForm);

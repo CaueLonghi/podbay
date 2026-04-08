@@ -43,6 +43,7 @@ export default function ProfileClient({ usuario, enderecos: initial }: Props) {
   const { logout } = useAuth();
   const { clearCart } = useCart();
   const [enderecos, setEnderecos] = useState<Endereco[]>(initial);
+  useEffect(() => { setEnderecos(initial); }, [initial]);
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
