@@ -8,10 +8,11 @@ async function requireAdmin() {
   return user;
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!await requireAdmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-  const id = Number(params.id);
+  const { id: rawId } = await params;
+  const id = Number(rawId);
   const body = await req.json();
   const { status, codigo_rastreio } = body;
 
