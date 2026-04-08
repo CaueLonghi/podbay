@@ -1,4 +1,3 @@
-import 'server-only';
 import { Pool } from 'pg';
 
 const globalForDb = globalThis as unknown as { db: Pool | undefined };
