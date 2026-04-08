@@ -12,7 +12,7 @@ const PUBLIC_PATHS = [
   '/profile',
 ];
 
-export function proxy(req: NextRequest) {
+export function middleware(req: NextRequest) {
   const { pathname } = new URL(req.url);
 
   if (
