@@ -15,7 +15,7 @@ interface Usuario {
   nome_completo: string;
   email: string;
   telefone: string | null;
-  is_admin: number;
+  is_admin: boolean;
   created_at: string;
 }
 
@@ -29,7 +29,7 @@ interface Endereco {
   bairro: string;
   cidade: string;
   estado: string;
-  principal: number;
+  principal: boolean;
 }
 
 interface Props {
@@ -164,8 +164,8 @@ export default function ProfileClient({ usuario, enderecos: initial }: Props) {
       if (!res.ok) return;
       setEnderecos((prev) =>
         prev
-          .map((e) => ({ ...e, principal: e.id === id ? 1 : 0 }))
-          .sort((a, b) => b.principal - a.principal || a.id - b.id)
+          .map((e) => ({ ...e, principal: e.id === id }))
+          .sort((a, b) => (b.principal ? 1 : 0) - (a.principal ? 1 : 0) || a.id - b.id)
       );
     } finally {
       setSwitchingId(null);
@@ -200,7 +200,7 @@ export default function ProfileClient({ usuario, enderecos: initial }: Props) {
           bairro: form.bairro,
           cidade: form.cidade,
           estado: form.estado,
-          principal: prev.length === 0 ? 1 : 0,
+          principal: prev.length === 0,
         },
       ]);
       setModalOpen(false);
@@ -242,7 +242,7 @@ export default function ProfileClient({ usuario, enderecos: initial }: Props) {
             </div>
             <div className="text-center">
               <p className="text-base font-bold text-foreground">{usuario.nome_completo || usuario.username}</p>
-              {usuario.is_admin === 1 && (
+              {usuario.is_admin && (
                 <Link href="/admin" className="flex items-center gap-1 text-xs font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full hover:bg-primary/20">
                   <ShieldCheck size={12} /> Admin
                 </Link>
@@ -304,10 +304,10 @@ export default function ProfileClient({ usuario, enderecos: initial }: Props) {
                 {enderecos.map((end) => (
                   <button
                     key={end.id}
-                    onClick={() => end.principal !== 1 && handleSetPrincipal(end.id)}
-                    disabled={end.principal === 1 || switchingId !== null}
+                    onClick={() => !end.principal && handleSetPrincipal(end.id)}
+                    disabled={end.principal || switchingId !== null}
                     className={`w-full text-left border rounded-2xl p-4 flex flex-col gap-1 transition-all active:scale-[0.98] ${
-                      end.principal === 1
+                      end.principal
                         ? 'border-primary bg-primary/20'
                         : 'border-[#3d3d4d] bg-surface hover:border-primary/50 cursor-pointer'
                     } ${switchingId === end.id ? 'opacity-60' : ''}`}
@@ -316,7 +316,7 @@ export default function ProfileClient({ usuario, enderecos: initial }: Props) {
                       <span className="text-xs font-semibold text-foreground">
                         {end.apelido || 'Endereço'}
                       </span>
-                      {end.principal === 1 ? (
+                      {end.principal ? (
                         <span className="flex items-center gap-1 text-[10px] font-semibold text-amber-400">
                           <Star size={10} fill="currentColor" />
                           Principal

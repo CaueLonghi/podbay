@@ -12,19 +12,6 @@ interface UsuarioRow {
   created_at: string;
 }
 
-interface EnderecoRow {
-  id: number;
-  apelido: string | null;
-  cep: string;
-  logradouro: string;
-  numero: string;
-  complemento: string | null;
-  bairro: string;
-  cidade: string;
-  estado: string;
-  principal: boolean;
-}
-
 export default async function ProfilePage() {
   const session = await getSessionUser();
 
@@ -44,7 +31,7 @@ export default async function ProfilePage() {
   ]);
 
   const usuario = userRows[0] as UsuarioRow;
-  const enderecos = enderecoRows as EnderecoRow[];
+  const enderecos = enderecoRows as any[];
 
   return <ProfileClient usuario={usuario} enderecos={enderecos} />;
 }
