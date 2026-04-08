@@ -31,15 +31,12 @@ export function middleware(req: Request): Response {
     .split(';')
     .some((c) => c.trim().startsWith(`${SESSION_COOKIE}=`));
 
-  if (!hasSession) {
-    // API routes retornam 401 em vez de redirecionar
-    if (pathname.startsWith('/api/')) {
-      return new Response(JSON.stringify({ error: 'Não autenticado' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
+  // API routes têm verificação própria via getSessionUser() — deixa passar
+  if (pathname.startsWith('/api/')) {
+    return next();
+  }
 
+  if (!hasSession) {
     const loginUrl = new URL('/login', req.url);
     loginUrl.searchParams.set('from', pathname);
     return Response.redirect(loginUrl.toString(), 307);
