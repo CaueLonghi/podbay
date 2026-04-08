@@ -1,4 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+// Sem imports de next/server — usa apenas Web APIs nativas do Edge Runtime
+// NextResponse.next() internamente usa o header x-middleware-next: 1
+// NextResponse.redirect() internamente usa Response.redirect()
 
 const SESSION_COOKIE = 'podbay_session';
 
@@ -12,7 +14,11 @@ const PUBLIC_PATHS = [
   '/profile',
 ];
 
-export function middleware(req: NextRequest) {
+function next(): Response {
+  return new Response(null, { headers: { 'x-middleware-next': '1' } });
+}
+
+export function middleware(req: Request) {
   const { pathname } = new URL(req.url);
 
   if (
@@ -22,18 +28,22 @@ export function middleware(req: NextRequest) {
     pathname.startsWith('/favicon') ||
     pathname.startsWith('/brands/')
   ) {
-    return NextResponse.next();
+    return next();
   }
 
-  const session = req.cookies.get(SESSION_COOKIE);
+  // Lê o cookie manualmente sem usar NextRequest
+  const cookieHeader = req.headers.get('cookie') ?? '';
+  const hasSession = cookieHeader
+    .split(';')
+    .some((c) => c.trim().startsWith(`${SESSION_COOKIE}=`));
 
-  if (!session?.value) {
+  if (!hasSession) {
     const loginUrl = new URL('/login', req.url);
     loginUrl.searchParams.set('from', pathname);
-    return NextResponse.redirect(loginUrl);
+    return Response.redirect(loginUrl.toString(), 307);
   }
 
-  return NextResponse.next();
+  return next();
 }
 
 export const config = {
