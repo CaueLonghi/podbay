@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SESSION_COOKIE } from './constants'; // Caminho relativo para o arquivo novo
+import { SESSION_COOKIE } from './constants';
 
 // Rotas que não precisam de autenticação
 const PUBLIC_PATHS = [
@@ -12,7 +12,7 @@ const PUBLIC_PATHS = [
   '/profile',
 ];
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Deixa passar rotas públicas e assets estáticos

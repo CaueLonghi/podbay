@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser } from '@/lib/session';
 import { db } from '@/lib/db';
-import type mysql from 'mysql2/promise';
 
 export async function GET() {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
 
-  const [rows] = await db.query<mysql.RowDataPacket[]>(
-    'SELECT id, apelido, cep, logradouro, numero, complemento, bairro, cidade, estado, principal FROM enderecos WHERE usuario_id = ? ORDER BY principal DESC, id ASC',
+  const { rows } = await db.query(
+    'SELECT id, apelido, cep, logradouro, numero, complemento, bairro, cidade, estado, principal FROM enderecos WHERE usuario_id = $1 ORDER BY principal DESC, id ASC',
     [user.id]
   );
 
@@ -26,16 +25,16 @@ export async function POST(req: NextRequest) {
   }
 
   // Se for o primeiro endereço, define como principal
-  const [countRows] = await db.query<mysql.RowDataPacket[]>(
-    'SELECT COUNT(*) AS total FROM enderecos WHERE usuario_id = ?',
+  const { rows: countRows } = await db.query(
+    'SELECT COUNT(*) AS total FROM enderecos WHERE usuario_id = $1',
     [user.id]
   );
-  const isFirst = (countRows[0] as { total: number }).total === 0;
+  const isFirst = Number(countRows[0].total) === 0;
 
-  const [result] = await db.query<mysql.ResultSetHeader>(
-    'INSERT INTO enderecos (usuario_id, apelido, cep, logradouro, numero, complemento, bairro, cidade, estado, principal) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [user.id, apelido || null, cep, logradouro, numero, complemento || null, bairro, cidade, estado, isFirst ? 1 : 0]
+  const { rows: [result] } = await db.query(
+    'INSERT INTO enderecos (usuario_id, apelido, cep, logradouro, numero, complemento, bairro, cidade, estado, principal) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id',
+    [user.id, apelido || null, cep, logradouro, numero, complemento || null, bairro, cidade, estado, isFirst]
   );
 
-  return NextResponse.json({ ok: true, id: result.insertId }, { status: 201 });
+  return NextResponse.json({ ok: true, id: result.id }, { status: 201 });
 }

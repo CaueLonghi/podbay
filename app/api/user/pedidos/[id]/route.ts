@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser } from '@/lib/session';
 import { db } from '@/lib/db';
-import type mysql from 'mysql2/promise';
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   const user = await getSessionUser();
@@ -9,14 +8,14 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
 
   const pedidoId = Number(params.id);
 
-  const [rows] = await db.query<mysql.RowDataPacket[]>(
-    "SELECT id, status FROM pedidos WHERE id = ? AND usuario_id = ? LIMIT 1",
+  const { rows } = await db.query(
+    "SELECT id, status FROM pedidos WHERE id = $1 AND usuario_id = $2 LIMIT 1",
     [pedidoId, Number(user.id)]
   );
 
   if (rows.length === 0) return NextResponse.json({ error: 'Pedido nao encontrado' }, { status: 404 });
   if (rows[0].status !== 'pendente') return NextResponse.json({ error: 'Apenas pedidos pendentes podem ser cancelados' }, { status: 400 });
 
-  await db.query("UPDATE pedidos SET status = 'cancelado' WHERE id = ?", [pedidoId]);
+  await db.query("UPDATE pedidos SET status = 'cancelado' WHERE id = $1", [pedidoId]);
   return NextResponse.json({ ok: true });
 }

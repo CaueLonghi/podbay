@@ -19,7 +19,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: 'estoque invalido' }, { status: 400 });
   }
 
-  await db.query('UPDATE catalogo SET estoque = ? WHERE id = ?', [Number(estoque), id]);
+  await db.query('UPDATE catalogo SET estoque = $1 WHERE id = $2', [Number(estoque), id]);
   return NextResponse.json({ ok: true });
 }
 
@@ -35,7 +35,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 
   await db.query(
-    `UPDATE catalogo SET marca=?, sabor=?, descricao=?, tamanho=?, valor=?, custo=?, estoque=?, emoji=? WHERE id=?`,
+    `UPDATE catalogo SET marca=$1, sabor=$2, descricao=$3, tamanho=$4, valor=$5, custo=$6, estoque=$7, emoji=$8 WHERE id=$9`,
     [marca, sabor, descricao || null, tamanho, Number(valor), Number(custo ?? 0), Number(estoque ?? 0), emoji || null, id]
   );
   return NextResponse.json({ ok: true });
@@ -45,6 +45,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   if (!await requireAdmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const id = Number(params.id);
-  await db.query('UPDATE catalogo SET ativo = 0 WHERE id = ?', [id]);
+  await db.query('UPDATE catalogo SET ativo = false WHERE id = $1', [id]);
   return NextResponse.json({ ok: true });
 }

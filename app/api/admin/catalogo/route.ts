@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser } from '@/lib/session';
 import { db } from '@/lib/db';
-import type mysql from 'mysql2/promise';
 
 async function requireAdmin() {
   const user = await getSessionUser();
@@ -12,7 +11,7 @@ async function requireAdmin() {
 export async function GET() {
   if (!await requireAdmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-  const [rows] = await db.query<mysql.RowDataPacket[]>(
+  const { rows } = await db.query(
     `SELECT id, marca, sabor, descricao, tamanho, valor, custo, estoque, emoji, ativo
      FROM catalogo ORDER BY marca, tamanho, sabor`
   );
@@ -29,11 +28,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Campos obrigatorios: marca, sabor, tamanho, valor' }, { status: 400 });
   }
 
-  const [result] = await db.query<mysql.ResultSetHeader>(
+  const { rows: [result] } = await db.query(
     `INSERT INTO catalogo (marca, sabor, descricao, tamanho, valor, custo, estoque, emoji, ativo)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true) RETURNING id`,
     [marca, sabor, descricao || null, tamanho, Number(valor), Number(custo ?? 0), Number(estoque ?? 0), emoji || null]
   );
 
-  return NextResponse.json({ id: result.insertId }, { status: 201 });
+  return NextResponse.json({ id: result.id }, { status: 201 });
 }

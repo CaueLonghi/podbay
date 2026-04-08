@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser } from '@/lib/session';
 import { db } from '@/lib/db';
-import type mysql from 'mysql2/promise';
 
 interface ItemPayload {
   produto_id: string;
@@ -39,8 +38,8 @@ export async function POST(req: NextRequest) {
   }
 
   // Bloqueia se ja existe um pedido pendente do usuario
-  const [pendentes] = await db.query<mysql.RowDataPacket[]>(
-    "SELECT id FROM pedidos WHERE usuario_id = ? AND status = 'pendente' LIMIT 1",
+  const { rows: pendentes } = await db.query(
+    "SELECT id FROM pedidos WHERE usuario_id = $1 AND status = 'pendente' LIMIT 1",
     [Number(user.id)]
   );
   if (pendentes.length > 0) {
@@ -52,8 +51,8 @@ export async function POST(req: NextRequest) {
 
   // Valida que o endereco_id pertence ao usuario logado
   if (endereco_id) {
-    const [rows] = await db.query<mysql.RowDataPacket[]>(
-      'SELECT id FROM enderecos WHERE id = ? AND usuario_id = ? LIMIT 1',
+    const { rows } = await db.query(
+      'SELECT id FROM enderecos WHERE id = $1 AND usuario_id = $2 LIMIT 1',
       [endereco_id, Number(user.id)]
     );
     if (rows.length === 0) {
@@ -65,11 +64,11 @@ export async function POST(req: NextRequest) {
   const valor_total = valor_subtotal;
 
   try {
-    const [result] = await db.query<mysql.ResultSetHeader>(
+    const { rows: [pedido] } = await db.query(
       `INSERT INTO pedidos
          (usuario_id, modalidade, metodo_pagamento, endereco_id, horario_retirada,
           valor_subtotal, desconto, valor_frete, valor_total, status)
-       VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, 'pendente')`,
+       VALUES ($1, $2, $3, $4, $5, $6, 0, 0, $7, 'pendente') RETURNING id`,
       [
         Number(user.id),
         modalidade,
@@ -81,19 +80,20 @@ export async function POST(req: NextRequest) {
       ]
     );
 
-    const pedidoId = result.insertId;
+    const pedidoId = pedido.id;
 
     // Busca custos dos produtos em uma única query
     const produtoIds = itens.map((i) => Number(i.produto_id)).filter(Boolean);
     const custoMap: Record<number, number> = {};
     if (produtoIds.length > 0) {
-      const [custoRows] = await db.query<mysql.RowDataPacket[]>(
-        'SELECT id, custo FROM catalogo WHERE id IN (?)',
+      const { rows: custoRows } = await db.query(
+        'SELECT id, custo FROM catalogo WHERE id = ANY($1)',
         [produtoIds]
       );
       for (const row of custoRows) custoMap[row.id] = Number(row.custo ?? 0);
     }
 
+    // Bulk insert de itens
     const rowValues = itens.map((i) => {
       const pid = Number(i.produto_id) || null;
       return [
@@ -108,11 +108,14 @@ export async function POST(req: NextRequest) {
       ];
     });
 
+    const cols = 8;
+    const placeholders = rowValues
+      .map((_, i) => `(${Array.from({ length: cols }, (__, c) => `$${i * cols + c + 1}`).join(',')})`)
+      .join(',');
     await db.query(
-      `INSERT INTO itens_pedido
-         (pedido_id, produto_id, nome_produto, sabor, tamanho, valor_unitario, custo_unitario, quantidade)
-       VALUES ?`,
-      [rowValues]
+      `INSERT INTO itens_pedido (pedido_id, produto_id, nome_produto, sabor, tamanho, valor_unitario, custo_unitario, quantidade)
+       VALUES ${placeholders}`,
+      rowValues.flat()
     );
 
     return NextResponse.json({ ok: true, pedido_id: pedidoId });

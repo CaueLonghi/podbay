@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSessionUser } from '@/lib/session';
 import { db } from '@/lib/db';
-import type mysql from 'mysql2/promise';
 
 async function requireAdmin() {
   const user = await getSessionUser();
@@ -12,7 +11,7 @@ async function requireAdmin() {
 export async function GET() {
   if (!await requireAdmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-  const [pedidos] = await db.query<mysql.RowDataPacket[]>(`
+  const { rows: pedidos } = await db.query(`
     SELECT
       p.id,
       p.status,
@@ -45,13 +44,13 @@ export async function GET() {
   if (pedidos.length === 0) return NextResponse.json({ pedidos: [] });
 
   const ids = pedidos.map((p) => p.id);
-  const [itens] = await db.query<mysql.RowDataPacket[]>(
+  const { rows: itens } = await db.query(
     `SELECT pedido_id, nome_produto, sabor, tamanho, valor_unitario, custo_unitario, quantidade
-     FROM itens_pedido WHERE pedido_id IN (?)`,
+     FROM itens_pedido WHERE pedido_id = ANY($1)`,
     [ids]
   );
 
-  const itensPorPedido: Record<number, mysql.RowDataPacket[]> = {};
+  const itensPorPedido: Record<number, typeof itens> = {};
   for (const item of itens) {
     if (!itensPorPedido[item.pedido_id]) itensPorPedido[item.pedido_id] = [];
     itensPorPedido[item.pedido_id].push(item);

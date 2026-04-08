@@ -1,6 +1,5 @@
 import { getSessionUser } from '@/lib/session';
 import { db } from '@/lib/db';
-import type mysql from 'mysql2/promise';
 import ProfileClient from '@/components/ProfileClient';
 
 interface UsuarioRow {
@@ -9,7 +8,7 @@ interface UsuarioRow {
   nome_completo: string;
   email: string;
   telefone: string | null;
-  is_admin: number;
+  is_admin: boolean;
   created_at: string;
 }
 
@@ -23,7 +22,7 @@ interface EnderecoRow {
   bairro: string;
   cidade: string;
   estado: string;
-  principal: number;
+  principal: boolean;
 }
 
 export default async function ProfilePage() {
@@ -33,13 +32,13 @@ export default async function ProfilePage() {
     return <ProfileClient usuario={null} enderecos={[]} />;
   }
 
-  const [[userRows], [enderecoRows]] = await Promise.all([
-    db.query<mysql.RowDataPacket[]>(
-      'SELECT id, username, nome_completo, email, telefone, is_admin, created_at FROM usuarios WHERE id = ? AND ativo = 1 LIMIT 1',
+  const [{ rows: userRows }, { rows: enderecoRows }] = await Promise.all([
+    db.query(
+      'SELECT id, username, nome_completo, email, telefone, is_admin, created_at FROM usuarios WHERE id = $1 AND ativo = true LIMIT 1',
       [session.id]
     ),
-    db.query<mysql.RowDataPacket[]>(
-      'SELECT id, apelido, cep, logradouro, numero, complemento, bairro, cidade, estado, principal FROM enderecos WHERE usuario_id = ? ORDER BY principal DESC, id ASC',
+    db.query(
+      'SELECT id, apelido, cep, logradouro, numero, complemento, bairro, cidade, estado, principal FROM enderecos WHERE usuario_id = $1 ORDER BY principal DESC, id ASC',
       [session.id]
     ),
   ]);

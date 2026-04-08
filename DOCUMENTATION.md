@@ -147,7 +147,7 @@ CREATE TABLE catalogo (
   valor      DECIMAL(10,2)   NOT NULL,
   estoque    INT UNSIGNED    NOT NULL DEFAULT 0,
   emoji      VARCHAR(30)     NULL,
-     ENUM('pods','bateria','liquido','acessorio') NOT NULL DEFAULT 'pods',
+  categoria  ENUM('pods','bateria','liquido','acessorio') NOT NULL DEFAULT 'pods',
   ativo      TINYINT(1)      NOT NULL DEFAULT 1,
   created_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP

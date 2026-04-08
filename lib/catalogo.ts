@@ -1,5 +1,4 @@
 import { db } from '@/lib/db';
-import type mysql from 'mysql2/promise';
 
 export interface Produto {
   id: number;
@@ -13,10 +12,10 @@ export interface Produto {
 }
 
 export async function getProdutos(): Promise<Produto[]> {
-  const [rows] = await db.query<mysql.RowDataPacket[]>(
+  const { rows } = await db.query(
     `SELECT id, marca, sabor, descricao, tamanho, valor, estoque, emoji
      FROM catalogo
-     WHERE ativo = 1
+     WHERE ativo = true
      ORDER BY marca, sabor`
   );
   return rows as Produto[];

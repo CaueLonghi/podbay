@@ -12,7 +12,7 @@ ALTER TABLE catalogo MODIFY COLUMN emoji VARCHAR(30) NULL;
 DELETE FROM catalogo;
 ALTER TABLE catalogo AUTO_INCREMENT = 1;
 
-INSERT INTO catalogo (marca, sabor, tamanho, valor, estoque, emoji,  ) VALUES
+INSERT INTO catalogo (marca, sabor, tamanho, valor, estoque, emoji, categoria) VALUES
 -- IGNITE V155
 ('IGNITE','Grape Ice','V155',85.00,20,'🍇❄️','pods'),
 ('IGNITE','Pineapple Ice','V155',85.00,20,'🍍❄️','pods'),

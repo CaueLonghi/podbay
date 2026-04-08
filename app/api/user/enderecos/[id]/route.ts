@@ -10,18 +10,18 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (!enderecoId) return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
 
   // Garante que o endereço pertence ao usuário
-  const [ownerCheck] = await db.query(
-    'SELECT id FROM enderecos WHERE id = ? AND usuario_id = ? LIMIT 1',
+  const { rows: ownerCheck } = await db.query(
+    'SELECT id FROM enderecos WHERE id = $1 AND usuario_id = $2 LIMIT 1',
     [enderecoId, user.id]
-  ) as [Array<{ id: number }>, unknown];
+  );
 
   if (ownerCheck.length === 0) {
     return NextResponse.json({ error: 'Endereço não encontrado' }, { status: 404 });
   }
 
   // Troca: remove principal de todos, seta no selecionado
-  await db.query('UPDATE enderecos SET principal = 0 WHERE usuario_id = ?', [user.id]);
-  await db.query('UPDATE enderecos SET principal = 1 WHERE id = ? AND usuario_id = ?', [enderecoId, user.id]);
+  await db.query('UPDATE enderecos SET principal = false WHERE usuario_id = $1', [user.id]);
+  await db.query('UPDATE enderecos SET principal = true WHERE id = $1 AND usuario_id = $2', [enderecoId, user.id]);
 
   return NextResponse.json({ ok: true });
 }

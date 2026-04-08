@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: false,
-  serverExternalPackages: ['mysql2', 'bcryptjs'],
+  serverExternalPackages: ['pg', 'bcryptjs'],
 };
 
 module.exports = nextConfig;

@@ -22,13 +22,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const fields: string[] = [];
   const values: (string | number)[] = [];
+  let idx = 1;
 
-  if (status) { fields.push('status = ?'); values.push(status); }
-  if (codigo_rastreio !== undefined) { fields.push('codigo_rastreio = ?'); values.push(codigo_rastreio); }
+  if (status) { fields.push(`status = $${idx++}`); values.push(status); }
+  if (codigo_rastreio !== undefined) { fields.push(`codigo_rastreio = $${idx++}`); values.push(codigo_rastreio); }
 
   if (fields.length === 0) return NextResponse.json({ error: 'Nada para atualizar' }, { status: 400 });
 
   values.push(id);
-  await db.query(`UPDATE pedidos SET ${fields.join(', ')} WHERE id = ?`, values);
+  await db.query(`UPDATE pedidos SET ${fields.join(', ')} WHERE id = $${idx}`, values);
   return NextResponse.json({ ok: true });
 }

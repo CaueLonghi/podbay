@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { db } from '@/lib/db';
 import { SESSION_COOKIE, SESSION_MAX_AGE } from '@/lib/auth-config';
-import type mysql from 'mysql2/promise';
 
 export async function POST(req: NextRequest) {
   const { nome_completo, email, telefone, password } = await req.json();
@@ -16,8 +15,8 @@ export async function POST(req: NextRequest) {
   }
 
   // Verifica e-mail duplicado
-  const [emailRows] = await db.query<mysql.RowDataPacket[]>(
-    'SELECT id FROM usuarios WHERE email = ? LIMIT 1',
+  const { rows: emailRows } = await db.query(
+    'SELECT id FROM usuarios WHERE email = $1 LIMIT 1',
     [email]
   );
   if (emailRows.length > 0) {
@@ -25,8 +24,8 @@ export async function POST(req: NextRequest) {
   }
 
   // Verifica telefone duplicado
-  const [phoneRows] = await db.query<mysql.RowDataPacket[]>(
-    'SELECT id FROM usuarios WHERE telefone = ? LIMIT 1',
+  const { rows: phoneRows } = await db.query(
+    'SELECT id FROM usuarios WHERE telefone = $1 LIMIT 1',
     [telefone]
   );
   if (phoneRows.length > 0) {
@@ -35,21 +34,21 @@ export async function POST(req: NextRequest) {
 
   // Gera username a partir do e-mail (parte antes do @)
   const base = email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '');
-  const [countRows] = await db.query<mysql.RowDataPacket[]>(
-    'SELECT COUNT(*) AS total FROM usuarios WHERE username LIKE ?',
+  const { rows: countRows } = await db.query(
+    'SELECT COUNT(*) AS total FROM usuarios WHERE username LIKE $1',
     [`${base}%`]
   );
-  const total = (countRows[0] as { total: number }).total;
+  const total = Number(countRows[0].total);
   const username = total > 0 ? `${base}${total + 1}` : base;
 
   const password_hash = await bcrypt.hash(password, 10);
 
-  const [result] = await db.query<mysql.ResultSetHeader>(
-    'INSERT INTO usuarios (username, nome_completo, email, telefone, password_hash) VALUES (?, ?, ?, ?, ?)',
+  const { rows: [newUser] } = await db.query(
+    'INSERT INTO usuarios (username, nome_completo, email, telefone, password_hash) VALUES ($1, $2, $3, $4, $5) RETURNING id',
     [username, nome_completo, email, telefone, password_hash]
   );
 
-  const userId = String(result.insertId);
+  const userId = String(newUser.id);
 
   const response = NextResponse.json({ ok: true, user: { id: userId, username, role: 'user' } });
 
