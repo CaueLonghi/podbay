@@ -9,7 +9,7 @@ export default async function AdminPage() {
   if (!session || session.role !== 'admin') redirect('/');
 
   const [rows] = await db.query<mysql.RowDataPacket[]>(
-    `SELECT id, marca, sabor, descricao, tamanho, valor, estoque, emoji, categoria, ativo
+    `SELECT id, marca, sabor, descricao, tamanho, valor, estoque, emoji, ativo
      FROM catalogo ORDER BY marca, tamanho, sabor`
   );
 

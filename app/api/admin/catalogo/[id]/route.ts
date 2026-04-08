@@ -28,15 +28,15 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   const id = Number(params.id);
   const body = await req.json();
-  const { marca, sabor, descricao, tamanho, valor, estoque, emoji, categoria } = body;
+  const { marca, sabor, descricao, tamanho, valor, custo, estoque, emoji } = body;
 
   if (!marca || !sabor || !tamanho || valor === undefined) {
     return NextResponse.json({ error: 'Campos obrigatorios: marca, sabor, tamanho, valor' }, { status: 400 });
   }
 
   await db.query(
-    `UPDATE catalogo SET marca=?, sabor=?, descricao=?, tamanho=?, valor=?, estoque=?, emoji=?, categoria=? WHERE id=?`,
-    [marca, sabor, descricao || null, tamanho, Number(valor), Number(estoque ?? 0), emoji || null, categoria || 'pods', id]
+    `UPDATE catalogo SET marca=?, sabor=?, descricao=?, tamanho=?, valor=?, custo=?, estoque=?, emoji=? WHERE id=?`,
+    [marca, sabor, descricao || null, tamanho, Number(valor), Number(custo ?? 0), Number(estoque ?? 0), emoji || null, id]
   );
   return NextResponse.json({ ok: true });
 }

@@ -46,7 +46,7 @@ export async function GET() {
 
   const ids = pedidos.map((p) => p.id);
   const [itens] = await db.query<mysql.RowDataPacket[]>(
-    `SELECT pedido_id, nome_produto, sabor, tamanho, valor_unitario, quantidade
+    `SELECT pedido_id, nome_produto, sabor, tamanho, valor_unitario, custo_unitario, quantidade
      FROM itens_pedido WHERE pedido_id IN (?)`,
     [ids]
   );

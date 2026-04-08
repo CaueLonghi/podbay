@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SESSION_COOKIE } from '@/lib/auth-config';
+import { SESSION_COOKIE } from './constants'; // Caminho relativo para o arquivo novo
 
 // Rotas que não precisam de autenticação
 const PUBLIC_PATHS = [

@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, User, Mail, Phone, MapPin, Plus, X, Star, ShieldCheck, LogOut } from 'lucide-react';
+import { ArrowLeft, User, Mail, Phone, MapPin, Plus, X, Star, ShieldCheck, LogOut, ShoppingBag } from 'lucide-react';
 import BottomNav from '@/components/BottomNav';
 import { useAuth } from '@/context/AuthContext';
-import { maskCep, ESTADOS } from '@/lib/utils';
+import { maskCep, ESTADOS, formatPrice } from '@/lib/utils';
 import { useCart } from '@/context/CartContext';
 
 interface Usuario {
@@ -48,6 +48,25 @@ export default function ProfileClient({ usuario, enderecos: initial }: Props) {
   const [error, setError] = useState('');
   const [switchingId, setSwitchingId] = useState<number | null>(null);
 
+  interface PedidoResumo {
+    id: number;
+    status: string;
+    modalidade: string;
+    valor_total: number;
+    criado_em: string;
+    resumo_itens: string;
+  }
+  const [pedidos, setPedidos] = useState<PedidoResumo[]>([]);
+  const [cancellingId, setCancellingId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!usuario) return;
+    fetch('/api/user/pedidos')
+      .then((r) => r.json())
+      .then((d) => setPedidos(d.pedidos ?? []))
+      .catch(() => {});
+  }, [usuario]);
+
   const [form, setForm] = useState({
     apelido: '',
     cep: '',
@@ -58,6 +77,16 @@ export default function ProfileClient({ usuario, enderecos: initial }: Props) {
     cidade: '',
     estado: 'SP',
   });
+
+  async function handleCancelar(id: number) {
+    setCancellingId(id);
+    try {
+      await fetch(`/api/user/pedidos/${id}`, { method: 'DELETE' });
+      setPedidos((prev) => prev.map((p) => p.id === id ? { ...p, status: 'cancelado' } : p));
+    } catch { /* ignore */ } finally {
+      setCancellingId(null);
+    }
+  }
 
   async function handleLogout() {
     clearCart();
@@ -310,6 +339,58 @@ export default function ProfileClient({ usuario, enderecos: initial }: Props) {
           </div>
           </div>{/* /max-w wrapper */}
         </main>
+
+        {/* Meus Pedidos */}
+        <div className="w-full max-w-screen-md mx-auto px-4 md:px-8 pb-2">
+          <div className="bg-surface border border-[#3d3d4d] rounded-2xl p-4 flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <ShoppingBag size={16} className="text-muted" />
+              <h2 className="text-sm font-semibold text-foreground">Meus Pedidos</h2>
+            </div>
+            {pedidos.length === 0 ? (
+              <p className="text-xs text-muted text-center py-4">Nenhum pedido realizado ainda.</p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {pedidos.map((p) => {
+                  const STATUS_COLORS: Record<string, string> = {
+                    pendente:  'text-yellow-400 bg-yellow-400/10 border-yellow-400/30',
+                    pago:      'text-blue-400 bg-blue-400/10 border-blue-400/30',
+                    enviado:   'text-purple-400 bg-purple-400/10 border-purple-400/30',
+                    entregue:  'text-green-400 bg-green-400/10 border-green-400/30',
+                    cancelado: 'text-red-400 bg-red-400/10 border-red-400/30',
+                  };
+                  const STATUS_LABELS: Record<string, string> = {
+                    pendente: 'Pendente', pago: 'Pago', enviado: 'Enviado',
+                    entregue: 'Entregue', cancelado: 'Cancelado',
+                  };
+                  return (
+                    <div key={p.id} className="border border-[#3d3d4d] rounded-xl p-3 flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-muted">#{p.id} · {new Date(p.criado_em).toLocaleDateString('pt-BR')}</span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${STATUS_COLORS[p.status] ?? ''}`}>
+                          {STATUS_LABELS[p.status] ?? p.status}
+                        </span>
+                      </div>
+                      <p className="text-xs text-foreground leading-snug">{p.resumo_itens}</p>
+                      <div className="flex items-center justify-between gap-2 mt-0.5">
+                        <span className="text-sm font-bold text-primary">{formatPrice(Number(p.valor_total))}</span>
+                        {p.status === 'pendente' && (
+                          <button
+                            onClick={() => handleCancelar(p.id)}
+                            disabled={cancellingId === p.id}
+                            className="text-[11px] font-semibold text-red-400 border border-red-400/30 px-3 py-1 rounded-lg hover:bg-red-400/10 transition-colors disabled:opacity-50"
+                          >
+                            {cancellingId === p.id ? 'Cancelando...' : 'Cancelar'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
 
         <div className="w-full max-w-screen-md mx-auto px-4 md:px-8 pb-6">
           <button

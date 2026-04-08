@@ -37,9 +37,9 @@ const emptyForm = { apelido: '', cep: '', logradouro: '', numero: '', complement
 
 function gerarHorarios(): string[] {
   const slots: string[] = [];
-  for (let h = 9; h <= 22; h++) {
+  for (let h = 11; h <= 20; h++) {
     slots.push(`${String(h).padStart(2, '0')}:00`);
-    if (h < 22) slots.push(`${String(h).padStart(2, '0')}:30`);
+    slots.push(`${String(h).padStart(2, '0')}:30`);
   }
   return slots;
 }
@@ -52,6 +52,7 @@ export default function CartPage() {
   const { user } = useAuth();
 
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [observacao, setObservacao] = useState('');
   const [modalidade, setModalidade] = useState<Modalidade | null>(null);
   const [horario, setHorario] = useState<string>('');
   const [pagamento, setPagamento] = useState<MetodoPagamento | null>(null);
@@ -183,6 +184,7 @@ export default function CartPage() {
       `*Total: ${formatPrice(totalPrice)}*`,
       `*Pagamento: ${pagamento === 'pix' ? 'PIX' : 'Dinheiro'}*`, ``,
       ...linhasEntrega,
+      ...(observacao.trim() ? [``, `*Observacao:* ${observacao.trim()}`] : []),
     ].join('\n');
 
     const url = `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(msg)}`;
@@ -510,6 +512,18 @@ export default function CartPage() {
 
               {/* RIGHT: summary + button (sticky on desktop) */}
               <div className="flex flex-col gap-3 md:sticky md:top-[calc(56px+16px)]">
+                {/* Observação */}
+                <div className="bg-surface border border-[#3d3d4d] rounded-2xl p-4 flex flex-col gap-2">
+                  <h2 className="text-sm font-semibold text-foreground">Observação</h2>
+                  <textarea
+                    value={observacao}
+                    onChange={(e) => setObservacao(e.target.value)}
+                    placeholder="Ex: Troco para R$ 100..."
+                    rows={3}
+                    className="w-full bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:outline-none focus:border-primary resize-none"
+                  />
+                </div>
+
                 {/* Summary */}
                 <div className="bg-surface border border-[#3d3d4d] rounded-2xl p-4 flex flex-col gap-3">
                   <h2 className="text-sm font-semibold text-foreground">Resumo do pedido</h2>

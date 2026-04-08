@@ -12,9 +12,9 @@ interface Produto {
   descricao: string | null;
   tamanho: string;
   valor: number;
+  custo: number;
   estoque: number;
   emoji: string | null;
-  categoria: string;
   ativo: number;
 }
 
@@ -23,6 +23,7 @@ interface ItemPedido {
   sabor: string;
   tamanho: string;
   valor_unitario: number;
+  custo_unitario: number;
   quantidade: number;
 }
 
@@ -84,8 +85,7 @@ const METODO_LABELS: Record<string, string> = {
 
 const STATUS_SEQUENCE: StatusPedido[] = ['pendente', 'pago', 'enviado', 'entregue', 'cancelado'];
 
-const CATEGORIAS = ['pods', 'bateria', 'liquido', 'acessorio'];
-const emptyForm = { marca: '', sabor: '', descricao: '', tamanho: '', valor: '', estoque: '0', emoji: '', categoria: 'pods' };
+const emptyForm = { marca: '', sabor: '', descricao: '', tamanho: '', valor: '', custo: '', estoque: '0', emoji: '' };
 
 
 // ── Faturamento ──────────────────────────────────────────────
@@ -125,21 +125,37 @@ function filtrarPorPeriodo(pedidos: Pedido[], periodo: PeriodoFiltro): Pedido[] 
   });
 }
 
+interface ResumoFinanceiro {
+  total_vendas: number;
+  faturamento: number;
+  total_frete: number;
+  lucro: number;
+}
+
 function FaturamentoTab({ pedidos, produtos }: { pedidos: Pedido[]; produtos: Produto[] }) {
   const [periodo, setPeriodo] = useState<PeriodoFiltro>('mes_atual');
   const [hoveredBar, setHoveredBar] = useState<number | null>(null);
+  const [resumo, setResumo] = useState<ResumoFinanceiro | null>(null);
 
-  // Pedidos filtrados pelo período selecionado
+  useEffect(() => {
+    setResumo(null);
+    fetch(`/api/admin/faturamento?periodo=${periodo}`)
+      .then((r) => r.json())
+      .then(setResumo)
+      .catch(() => {});
+  }, [periodo]);
+
+  // Pedidos filtrados pelo período — usados para gráfico, marcas e distribuição
   const pedidosPeriodo = filtrarPorPeriodo(pedidos, periodo);
-
-  // Apenas pedidos pagos/enviados/entregues para totais e modalidade
   const vendidos = pedidosPeriodo.filter((p) => p.status !== 'cancelado' && p.status !== 'pendente');
-  // Apenas entregues para ranking de marcas e exportacao
   const concluidos = pedidosPeriodo.filter((p) => p.status === 'entregue');
 
-  const totalVendas = vendidos.length;
-  const faturamento = vendidos.reduce((s, p) => s + Number(p.valor_total), 0);
-  const totalEntregas = vendidos.filter((p) => p.modalidade === 'entrega').length;
+  const totalVendas  = resumo?.total_vendas ?? 0;
+  const faturamento  = resumo?.faturamento  ?? 0;
+  const totalFrete   = resumo?.total_frete  ?? 0;
+  const lucro        = resumo?.lucro        ?? 0;
+
+  const totalEntregas  = vendidos.filter((p) => p.modalidade === 'entrega').length;
   const totalRetiradas = vendidos.filter((p) => p.modalidade === 'retirada').length;
 
   // Distribuicao de status (pedidos do período)
@@ -270,7 +286,7 @@ function FaturamentoTab({ pedidos, produtos }: { pedidos: Pedido[]; produtos: Pr
         ))}
       </div>
 
-      {/* 1 + 2: Vendas e Faturamento */}
+      {/* Cards: Vendas, Faturamento, Lucro, Frete */}
       <div className="grid grid-cols-2 gap-3 md:col-span-2">
         <div className="bg-surface border border-[#3d3d4d] rounded-2xl p-4 flex flex-col gap-1">
           <p className="text-[10px] font-bold text-muted uppercase tracking-wider">Total de vendas</p>
@@ -280,9 +296,23 @@ function FaturamentoTab({ pedidos, produtos }: { pedidos: Pedido[]; produtos: Pr
         <div className="bg-surface border border-primary/30 rounded-2xl p-4 flex flex-col gap-1">
           <p className="text-[10px] font-bold text-muted uppercase tracking-wider">Faturamento</p>
           <p className="text-2xl font-black text-primary leading-tight">
-            {faturamento.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            {formatPrice(faturamento)}
           </p>
           <p className="text-[10px] text-muted">soma dos pedidos</p>
+        </div>
+        <div className="bg-surface border border-green-500/30 rounded-2xl p-4 flex flex-col gap-1">
+          <p className="text-[10px] font-bold text-muted uppercase tracking-wider">Lucro estimado</p>
+          <p className={`text-2xl font-black leading-tight ${lucro >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            {formatPrice(lucro)}
+          </p>
+          <p className="text-[10px] text-muted">faturamento − custo</p>
+        </div>
+        <div className="bg-surface border border-blue-500/30 rounded-2xl p-4 flex flex-col gap-1">
+          <p className="text-[10px] font-bold text-muted uppercase tracking-wider">Gasto com frete</p>
+          <p className="text-2xl font-black text-blue-400 leading-tight">
+            {formatPrice(totalFrete)}
+          </p>
+          <p className="text-[10px] text-muted">soma dos fretes</p>
         </div>
       </div>
 
@@ -648,6 +678,7 @@ export default function AdminClient({ produtos: initial }: Props) {
         body: JSON.stringify({
           ...form,
           valor: Number(form.valor),
+          custo: Number(form.custo ?? 0),
           estoque: Number(form.estoque),
         }),
       });
@@ -660,9 +691,9 @@ export default function AdminClient({ produtos: initial }: Props) {
         descricao: form.descricao || null,
         tamanho: form.tamanho,
         valor: Number(form.valor),
+        custo: Number(form.custo ?? 0),
         estoque: Number(form.estoque),
         emoji: form.emoji || null,
-        categoria: form.categoria,
         ativo: 1,
       }]);
       setForm(emptyForm);
@@ -683,9 +714,9 @@ export default function AdminClient({ produtos: initial }: Props) {
       descricao: p.descricao ?? '',
       tamanho: p.tamanho,
       valor: String(p.valor),
+      custo: String(p.custo ?? ''),
       estoque: String(p.estoque),
       emoji: p.emoji ?? '',
-      categoria: p.categoria,
     });
     setEditError('');
   }
@@ -702,6 +733,7 @@ export default function AdminClient({ produtos: initial }: Props) {
         body: JSON.stringify({
           ...editForm,
           valor: Number(editForm.valor),
+          custo: Number(editForm.custo ?? 0),
           estoque: Number(editForm.estoque),
         }),
       });
@@ -710,8 +742,8 @@ export default function AdminClient({ produtos: initial }: Props) {
       setProdutos((prev) => prev.map((p) =>
         p.id === editingId
           ? { ...p, marca: editForm.marca, sabor: editForm.sabor, descricao: editForm.descricao || null,
-              tamanho: editForm.tamanho, valor: Number(editForm.valor), estoque: Number(editForm.estoque),
-              emoji: editForm.emoji || null, categoria: editForm.categoria }
+              tamanho: editForm.tamanho, valor: Number(editForm.valor), custo: Number(editForm.custo ?? 0),
+              estoque: Number(editForm.estoque), emoji: editForm.emoji || null }
           : p
       ));
       setEditingId(null);
@@ -1066,13 +1098,12 @@ export default function AdminClient({ produtos: initial }: Props) {
                   <input required type="number" min="0" step="0.01" placeholder="Valor (R$)" value={form.valor}
                     onChange={(e) => setForm((p) => ({ ...p, valor: e.target.value }))}
                     className="bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary" />
+                  <input type="number" min="0" step="0.01" placeholder="Custo (R$)" value={form.custo}
+                    onChange={(e) => setForm((p) => ({ ...p, custo: e.target.value }))}
+                    className="bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary" />
                   <input required type="number" min="0" placeholder="Estoque" value={form.estoque}
                     onChange={(e) => setForm((p) => ({ ...p, estoque: e.target.value }))}
                     className="bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary" />
-                  <select value={form.categoria} onChange={(e) => setForm((p) => ({ ...p, categoria: e.target.value }))}
-                    className="col-span-2 bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground focus:border-primary">
-                    {CATEGORIAS.map((c) => <option key={c}>{c}</option>)}
-                  </select>
                 </div>
                 {formError && <p className="text-xs text-red-400">{formError}</p>}
                 <button type="submit" disabled={saving}
@@ -1116,7 +1147,7 @@ export default function AdminClient({ produtos: initial }: Props) {
                         <span className="text-xs bg-[#2a2a3d] text-muted font-semibold px-2 py-0.5 rounded-lg">{p.tamanho}</span>
                       </div>
                       <p className="text-sm font-semibold text-foreground mt-0.5 truncate">{p.sabor}</p>
-                      <p className="text-xs text-muted">{formatPrice(p.valor)}</p>
+                      <p className="text-xs text-muted">{formatPrice(p.valor)}{p.custo > 0 && <span className="ml-1 text-muted/60">· custo {formatPrice(p.custo)}</span>}</p>
                     </div>
 
                     {/* Controle de estoque */}
@@ -1210,13 +1241,12 @@ export default function AdminClient({ produtos: initial }: Props) {
                         <input required type="number" min="0" step="0.01" placeholder="Valor (R$)" value={editForm.valor}
                           onChange={(e) => setEditForm((f) => ({ ...f, valor: e.target.value }))}
                           className="bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary" />
+                        <input type="number" min="0" step="0.01" placeholder="Custo (R$)" value={editForm.custo}
+                          onChange={(e) => setEditForm((f) => ({ ...f, custo: e.target.value }))}
+                          className="bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary" />
                         <input required type="number" min="0" placeholder="Estoque" value={editForm.estoque}
                           onChange={(e) => setEditForm((f) => ({ ...f, estoque: e.target.value }))}
                           className="bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary" />
-                        <select value={editForm.categoria} onChange={(e) => setEditForm((f) => ({ ...f, categoria: e.target.value }))}
-                          className="col-span-2 bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground focus:border-primary">
-                          {CATEGORIAS.map((c) => <option key={c}>{c}</option>)}
-                        </select>
                       </div>
                       {editError && <p className="text-xs text-red-400">{editError}</p>}
                       <div className="flex gap-2">

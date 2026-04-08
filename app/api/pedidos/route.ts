@@ -83,19 +83,34 @@ export async function POST(req: NextRequest) {
 
     const pedidoId = result.insertId;
 
-    const rowValues = itens.map((i) => [
-      pedidoId,
-      Number(i.produto_id) || null,
-      i.nome_produto,
-      i.sabor,
-      i.tamanho,
-      i.valor_unitario,
-      i.quantidade,
-    ]);
+    // Busca custos dos produtos em uma única query
+    const produtoIds = itens.map((i) => Number(i.produto_id)).filter(Boolean);
+    const custoMap: Record<number, number> = {};
+    if (produtoIds.length > 0) {
+      const [custoRows] = await db.query<mysql.RowDataPacket[]>(
+        'SELECT id, custo FROM catalogo WHERE id IN (?)',
+        [produtoIds]
+      );
+      for (const row of custoRows) custoMap[row.id] = Number(row.custo ?? 0);
+    }
+
+    const rowValues = itens.map((i) => {
+      const pid = Number(i.produto_id) || null;
+      return [
+        pedidoId,
+        pid,
+        i.nome_produto,
+        i.sabor,
+        i.tamanho,
+        i.valor_unitario,
+        pid ? (custoMap[pid] ?? 0) : 0,
+        i.quantidade,
+      ];
+    });
 
     await db.query(
       `INSERT INTO itens_pedido
-         (pedido_id, produto_id, nome_produto, sabor, tamanho, valor_unitario, quantidade)
+         (pedido_id, produto_id, nome_produto, sabor, tamanho, valor_unitario, custo_unitario, quantidade)
        VALUES ?`,
       [rowValues]
     );

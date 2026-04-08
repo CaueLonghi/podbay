@@ -10,15 +10,14 @@ export interface Produto {
   valor: number;
   estoque: number;
   emoji: string | null;
-  categoria: 'pods' | 'bateria' | 'liquido' | 'acessorio';
 }
 
 export async function getProdutos(): Promise<Produto[]> {
   const [rows] = await db.query<mysql.RowDataPacket[]>(
-    `SELECT id, marca, sabor, descricao, tamanho, valor, estoque, emoji, categoria
+    `SELECT id, marca, sabor, descricao, tamanho, valor, estoque, emoji
      FROM catalogo
      WHERE ativo = 1
-     ORDER BY categoria, marca, sabor`
+     ORDER BY marca, sabor`
   );
   return rows as Produto[];
 }

@@ -41,13 +41,13 @@ CREATE TABLE IF NOT EXISTS catalogo (
   valor         DECIMAL(10, 2)  NOT NULL,
   estoque       INT UNSIGNED    NOT NULL DEFAULT 0,
   emoji         VARCHAR(10)     NULL,      -- emoji exibido no app
-  categoria     ENUM('pods','bateria','liquido','acessorio') NOT NULL DEFAULT 'pods',
+        ENUM('pods','bateria','liquido','acessorio') NOT NULL DEFAULT 'pods',
   ativo         TINYINT(1)      NOT NULL DEFAULT 1,
   created_at    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
   PRIMARY KEY (id),
-  KEY idx_categoria (categoria),
+  KEY idx_  ( ),
   KEY idx_ativo (ativo)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -89,7 +89,7 @@ INSERT INTO usuarios (username, email, password_hash, is_admin) VALUES
 -- =============================================================
 -- DADOS INICIAIS — CATALOGO
 -- =============================================================
-INSERT INTO catalogo (marca, sabor, tamanho, valor, estoque, emoji, categoria) VALUES
+INSERT INTO catalogo (marca, sabor, tamanho, valor, estoque, emoji,  ) VALUES
   -- Pods
   ('JUUL',        'Mint Fresco',     '0.7ml', 28.90, 50,  '❄️',  'pods'),
   ('JUUL',        'Berry Suave',     '0.7ml', 31.90, 40,  '🫐',  'pods'),
