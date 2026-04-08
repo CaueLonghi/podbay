@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SESSION_COOKIE } from './constants';
 
-// Rotas que não precisam de autenticação
+const SESSION_COOKIE = 'podbay_session';
+
 const PUBLIC_PATHS = [
   '/login',
   '/register',
@@ -13,9 +13,8 @@ const PUBLIC_PATHS = [
 ];
 
 export function proxy(req: NextRequest) {
-  const { pathname } = req.nextUrl;
+  const { pathname } = new URL(req.url);
 
-  // Deixa passar rotas públicas e assets estáticos
   if (
     pathname === '/' ||
     PUBLIC_PATHS.some((p) => pathname.startsWith(p)) ||
