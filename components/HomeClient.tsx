@@ -82,13 +82,14 @@ export default function HomeClient({ produtos }: Props) {
           <div className="w-full max-w-screen-xl mx-auto px-4 md:px-8">
             {/* Logo row — hidden on desktop (TopNav handles it) */}
             <div className="relative flex items-center justify-center mb-3 md:hidden" style={{ minHeight: '40px' }}>
-              <h1 className="text-5xl font-black tracking-tight" style={{ color: '#a78bfa', textShadow: '0 0 8px #7c3aed' }}>PODBAY</h1>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logos/escritaPodBay.png" alt="PodBay" className="h-20 object-contain" />
               <Link
                 href="/profile"
-                className="absolute right-0 w-8 h-8 rounded-full flex items-center justify-center active:scale-95" style={{ background: 'rgba(167, 139, 250, 0.25)' }}
+                className="absolute right-0 w-11 h-11 rounded-full flex items-center justify-center active:scale-95" style={{ background: 'rgba(167, 139, 250, 0.25)' }}
                 aria-label="Ir para perfil"
               >
-                <User size={16} className="text-primary" />
+                <User size={20} className="text-primary" />
               </Link>
             </div>
 
@@ -118,7 +119,7 @@ export default function HomeClient({ produtos }: Props) {
           </div>
 
           {/* Brand Pills */}
-          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 md:justify-center md:flex-wrap md:overflow-visible">
             <button
               onClick={() => setActiveMarca('all')}
               className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium border transition-all ${

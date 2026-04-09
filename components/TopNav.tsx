@@ -36,12 +36,9 @@ export default function TopNav() {
 
   return (
     <nav className="hidden md:flex sticky top-0 z-40 bg-surface/95 backdrop-blur-sm border-b border-[#3d3d4d] px-8 h-14 items-center justify-between gap-6">
-      <Link
-        href="/"
-        className="text-2xl font-black shrink-0"
-        style={{ color: '#a78bfa', textShadow: '0 0 8px #7c3aed' }}
-      >
-        PODBAY
+      <Link href="/" className="shrink-0">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logos/escritaPodBay.png" alt="PodBay" className="h-8 object-contain" />
       </Link>
 
       <div className="flex items-center gap-1">

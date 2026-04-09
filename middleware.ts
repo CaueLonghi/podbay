@@ -47,5 +47,5 @@ export function middleware(req: Request): Response {
 
 export const config = {
   // Exclui assets estáticos do Next.js — só roda em páginas e API routes
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|brands/).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|brands/|logos/).*)'],
 };

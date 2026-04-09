@@ -2,7 +2,7 @@
 
 import { useState, FormEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Eye, EyeOff, Lock, User } from 'lucide-react';
+import { Eye, EyeOff, Lock, User, ShoppingBag } from 'lucide-react';
 import Link from 'next/link';
 
 export default function LoginPage() {
@@ -50,23 +50,21 @@ export default function LoginPage() {
     >
       {/* Logo */}
       <div className="mb-10 text-center">
-        <div
-          className="w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-4 text-4xl"
-          style={{ background: 'linear-gradient(135deg, #a78bfa, #7c3aed)' }}
-        >
-          💨
-        </div>
-        <h1 className="text-4xl font-bold" style={{ color: '#a78bfa' }}>
-          PODBAY
-        </h1>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/logos/logo.png"
+          alt="PodBay"
+          className="object-contain mx-auto mb-4" style={{ width: 360, height: 360 }}
+        />
         <p className="text-sm mt-1" style={{ color: '#6b7280' }}>
           Sua loja de vape favorita
         </p>
         <Link
           href="/"
-          className="inline-block mt-3 text-xs font-medium px-4 py-1.5 rounded-full border transition-colors"
+          className="inline-flex items-center gap-2 mt-3 text-sm font-semibold px-5 py-2 rounded-full border transition-colors"
           style={{ color: '#a78bfa', borderColor: '#3d3d4d' }}
         >
+          <ShoppingBag size={16} />
           Ver catálogo
         </Link>
       </div>
