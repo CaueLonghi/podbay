@@ -2,8 +2,9 @@
 
 import { useState, useMemo, useEffect, FormEvent } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Plus, Trash2, PackageSearch, TrendingUp, ShoppingBag, ChevronUp, ChevronDown, Check, ArrowUpDown, Pencil, X, MapPin, CreditCard, Clock, Truck, Store } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, PackageSearch, TrendingUp, ShoppingBag, Check, Pencil, X, MapPin, CreditCard, Clock, Truck, Store } from 'lucide-react';
 import { formatPrice } from '@/lib/utils';
+import InvestimentosTab from '@/components/InvestimentosTab';
 
 interface Produto {
   id: number;
@@ -57,7 +58,7 @@ interface Props {
   produtos: Produto[];
 }
 
-type Tab = 'vendas' | 'estoque' | 'faturamento';
+type Tab = 'vendas' | 'estoque' | 'faturamento' | 'investimentos';
 type StatusPedido = 'pendente' | 'pago' | 'enviado' | 'entregue' | 'cancelado';
 type ModalidadeFiltro = 'all' | 'entrega' | 'retirada';
 
@@ -593,9 +594,6 @@ export default function AdminClient({ produtos: initial }: Props) {
   // ── Estoque ──────────────────────────────────────────────────
   const [produtos, setProdutos] = useState<Produto[]>(initial);
   const [filtroMarca, setFiltroMarca] = useState('all');
-  const [ordenacao, setOrdenacao] = useState<'alfa' | 'estoque'>('alfa');
-
-  const marcas = useMemo(() => ['all', ...Array.from(new Set(produtos.map((p) => p.marca))).sort()], [produtos]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
@@ -612,31 +610,33 @@ export default function AdminClient({ produtos: initial }: Props) {
   // savedStock: IDs que acabaram de ser salvos (para mostrar check verde)
   const [savedStock, setSavedStock] = useState<Record<number, boolean>>({});
 
-  const produtosFiltrados = useMemo(() => {
-    let lista = filtroMarca === 'all' ? produtos : produtos.filter((p) => p.marca === filtroMarca);
-    if (ordenacao === 'estoque') {
-      lista = [...lista].sort((a, b) => a.estoque - b.estoque);
-    } else {
-      lista = [...lista].sort((a, b) => a.sabor.localeCompare(b.sabor));
+  // Produtos agrupados por marca, cada marca com sabores em ordem alfabética
+  const marcasAgrupadas = useMemo(() => {
+    const lista = filtroMarca === 'all' ? produtos : produtos.filter((p) => p.marca === filtroMarca);
+    const marcaMap = new Map<string, Map<string, Produto[]>>();
+    for (const p of lista) {
+      if (!marcaMap.has(p.marca)) marcaMap.set(p.marca, new Map());
+      const tamanhoMap = marcaMap.get(p.marca)!;
+      if (!tamanhoMap.has(p.tamanho)) tamanhoMap.set(p.tamanho, []);
+      tamanhoMap.get(p.tamanho)!.push(p);
     }
-    return lista;
-  }, [produtos, filtroMarca, ordenacao]);
+    // Marcas A→Z, tamanhos A→Z, sabores A→Z
+    return Array.from(marcaMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([marca, tamanhoMap]) => ({
+        marca,
+        tamanhos: Array.from(tamanhoMap.entries())
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([tamanho, prods]) => ({
+            tamanho,
+            produtos: [...prods].sort((a, b) => a.sabor.localeCompare(b.sabor)),
+          })),
+      }));
+  }, [produtos, filtroMarca]);
 
   // ── Estoque helpers ──────────────────────────────────────────
-  function adjustStock(id: number, delta: number) {
-    const produto = produtos.find((p) => p.id === id);
-    if (!produto) return;
-    const base = pendingStock[id] ?? produto.estoque;
-    const novo = Math.max(0, base + delta);
-    setPendingStock((prev) => ({ ...prev, [id]: novo }));
-    // limpa o check de salvo anterior ao editar novamente
-    setSavedStock((prev) => { const n = { ...prev }; delete n[id]; return n; });
-  }
-
-  function setStockDirect(id: number, val: string) {
-    const num = Number(val);
-    if (isNaN(num) || num < 0) return;
-    setPendingStock((prev) => ({ ...prev, [id]: num }));
+  function onSliderChange(id: number, val: number) {
+    setPendingStock((prev) => ({ ...prev, [id]: val }));
     setSavedStock((prev) => { const n = { ...prev }; delete n[id]; return n; });
   }
 
@@ -756,9 +756,10 @@ export default function AdminClient({ produtos: initial }: Props) {
 
   // ── Tabs ─────────────────────────────────────────────────────
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
-    { key: 'vendas',      label: 'Vendas',      icon: <ShoppingBag size={16} /> },
-    { key: 'estoque',     label: 'Estoque',     icon: <PackageSearch size={16} /> },
-    { key: 'faturamento', label: 'Faturamento', icon: <TrendingUp size={16} /> },
+    { key: 'vendas',        label: 'Vendas',        icon: <ShoppingBag size={16} /> },
+    { key: 'estoque',       label: 'Estoque',       icon: <PackageSearch size={16} /> },
+    { key: 'faturamento',   label: 'Faturamento',   icon: <TrendingUp size={16} /> },
+    { key: 'investimentos', label: 'Investimentos', icon: <span className="text-sm">💰</span> },
   ];
 
   return (
@@ -1113,162 +1114,169 @@ export default function AdminClient({ produtos: initial }: Props) {
               </form>
             )}
 
-            {/* Filtro marca + Ordenação */}
-            <div className="flex gap-2">
-              <div className="flex-1 overflow-x-auto no-scrollbar">
-                <div className="flex gap-1.5 w-max">
-                  {marcas.map((m) => (
-                    <button key={m} onClick={() => setFiltroMarca(m)}
-                      className={`text-xs font-semibold px-3 py-1.5 rounded-xl border whitespace-nowrap transition-all ${
-                        filtroMarca === m ? 'bg-primary text-white border-primary' : 'bg-surface text-muted border-[#3d3d4d] hover:border-primary/50'
-                      }`}>
-                      {m === 'all' ? 'Todas' : m}
-                    </button>
-                  ))}
-                </div>
+            {/* Filtro por marca */}
+            <div className="overflow-x-auto no-scrollbar">
+              <div className="flex gap-1.5 w-max">
+                {(['all', ...Array.from(new Set(produtos.map((p) => p.marca))).sort()]).map((m) => (
+                  <button key={m} onClick={() => setFiltroMarca(m)}
+                    className={`text-xs font-semibold px-3 py-1.5 rounded-xl border whitespace-nowrap transition-all ${
+                      filtroMarca === m ? 'bg-primary text-white border-primary' : 'bg-surface text-muted border-[#3d3d4d] hover:border-primary/50'
+                    }`}>
+                    {m === 'all' ? 'Todas' : m}
+                  </button>
+                ))}
               </div>
-              <button
-                onClick={() => setOrdenacao((o) => o === 'alfa' ? 'estoque' : 'alfa')}
-                className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-xl border border-[#3d3d4d] text-muted hover:border-primary/50 whitespace-nowrap flex-shrink-0"
-              >
-                <ArrowUpDown size={12} />
-                {ordenacao === 'alfa' ? 'A→Z' : 'Estoque'}
-              </button>
             </div>
 
-            {/* Lista de produtos */}
-            <div className="flex flex-col gap-2 md:grid md:grid-cols-2 lg:grid-cols-3">
-              {produtosFiltrados.map((p) => (
-                <div key={p.id} className="flex flex-col">
-                  <div className="bg-surface border border-[#3d3d4d] rounded-2xl px-4 py-3 flex items-center gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-xs bg-primary/20 text-primary font-bold px-2 py-0.5 rounded-lg">{p.marca}</span>
-                        <span className="text-xs bg-[#2a2a3d] text-muted font-semibold px-2 py-0.5 rounded-lg">{p.tamanho}</span>
-                      </div>
-                      <p className="text-sm font-semibold text-foreground mt-0.5 truncate">{p.sabor}</p>
-                      <p className="text-xs text-muted">{formatPrice(p.valor)}{p.custo > 0 && <span className="ml-1 text-muted/60">· custo {formatPrice(p.custo)}</span>}</p>
+            {/* Lista agrupada por marca → tamanho → sabor */}
+            <div className="flex flex-col gap-4">
+              {marcasAgrupadas.map(({ marca, tamanhos }) => {
+                const totalSaboresMarca = tamanhos.reduce((acc, t) => acc + t.produtos.length, 0);
+                return (
+                  <div key={marca} className="bg-surface border border-[#3d3d4d] rounded-2xl p-4 flex flex-col gap-3">
+
+                    {/* Cabeçalho da marca */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-primary">{marca}</span>
+                      <span className="text-[10px] text-muted font-semibold bg-[#2a2a3d] px-2 py-0.5 rounded-lg">
+                        {totalSaboresMarca} sabor{totalSaboresMarca !== 1 ? 'es' : ''}
+                      </span>
                     </div>
 
-                    {/* Controle de estoque */}
-                    <div className="flex flex-col items-center gap-1 flex-shrink-0">
-                      <button onClick={() => adjustStock(p.id, 1)}
-                        className="w-7 h-7 rounded-lg bg-[#2a2a3d] flex items-center justify-center hover:bg-primary/20 active:scale-95">
-                        <ChevronUp size={14} className="text-muted" />
-                      </button>
+                    {/* Grupos por tamanho */}
+                    <div className="flex flex-col gap-3">
+                      {tamanhos.map(({ tamanho, produtos: prods }) => (
+                        <div key={tamanho} className="bg-background border border-[#3d3d4d] rounded-xl p-3 flex flex-col gap-2">
 
-                      {(() => {
-                        const displayVal = pendingStock[p.id] ?? p.estoque;
-                        const isDirty = pendingStock[p.id] !== undefined;
-                        const isSaved = savedStock[p.id];
-                        return (
-                          <input
-                            type="number" min="0"
-                            value={displayVal}
-                            onChange={(e) => setStockDirect(p.id, e.target.value)}
-                            className={`w-10 text-center text-xs font-bold bg-background rounded-lg py-1 border focus:outline-none focus:border-primary ${
-                              isDirty ? 'border-primary text-primary' :
-                              displayVal === 0 ? 'border-red-400/30 text-red-400' :
-                              displayVal <= 5 ? 'border-orange-400/30 text-orange-400' :
-                              'border-[#3d3d4d] text-foreground'
-                            } ${isSaved ? '!border-green-500 !text-green-400' : ''}`}
-                          />
-                        );
-                      })()}
+                          {/* Cabeçalho do tamanho */}
+                          <div className="flex items-center gap-2 pb-1 border-b border-[#3d3d4d]">
+                            <span className="text-xs font-bold text-foreground">{tamanho}</span>
+                            <span className="text-[10px] text-muted">{prods.length} sabor{prods.length !== 1 ? 'es' : ''}</span>
+                          </div>
 
-                      <button onClick={() => adjustStock(p.id, -1)}
-                        className="w-7 h-7 rounded-lg bg-[#2a2a3d] flex items-center justify-center hover:bg-primary/20 active:scale-95">
-                        <ChevronDown size={14} className="text-muted" />
-                      </button>
-                    </div>
+                          {/* Sabores deste tamanho */}
+                          <div className="flex flex-col gap-3">
+                            {prods.map((p: Produto) => (
+                              <div key={p.id} className="flex flex-col">
+                                <div className="flex flex-col gap-0.5 px-1 pt-2 pb-1">
+                                  {/* Linha: nome + ações */}
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-1.5">
+                                        <p className="text-base font-semibold text-foreground truncate leading-tight">{p.sabor}</p>
+                                        {p.emoji && <span className="text-base">{p.emoji}</span>}
+                                      </div>
+                                      <p className="text-xs text-muted">{formatPrice(p.valor)}{p.custo > 0 && <span className="ml-1 text-muted/60">· custo {formatPrice(p.custo)}</span>}</p>
+                                    </div>
+                                    <div className="flex gap-1 flex-shrink-0">
+                                      <button onClick={() => editingId === p.id ? setEditingId(null) : startEdit(p)}
+                                        className={`w-7 h-7 rounded-lg flex items-center justify-center active:scale-95 transition-all ${
+                                          editingId === p.id ? 'bg-primary/20 text-primary' : 'text-muted hover:text-primary hover:bg-primary/10'
+                                        }`}>
+                                        {editingId === p.id ? <X size={14} /> : <Pencil size={14} />}
+                                      </button>
+                                      <button onClick={() => handleDelete(p.id)} disabled={deletingId === p.id}
+                                        className="w-7 h-7 rounded-lg flex items-center justify-center text-muted hover:text-red-400 hover:bg-red-400/10 active:scale-95 transition-all">
+                                        <Trash2 size={14} />
+                                      </button>
+                                    </div>
+                                  </div>
 
-                    {/* Confirmar estoque / Editar / Deletar */}
-                    <div className="flex flex-col gap-1 flex-shrink-0">
-                      {pendingStock[p.id] !== undefined ? (
-                        <button
-                          onClick={() => confirmStock(p.id)}
-                          disabled={savingStock[p.id]}
-                          className="w-8 h-8 rounded-xl flex items-center justify-center bg-green-500/20 text-green-400 hover:bg-green-500/30 active:scale-95 transition-all"
-                          title="Salvar estoque"
-                        >
-                          {savingStock[p.id] ? <span className="text-[10px]">...</span> : <Check size={16} />}
-                        </button>
-                      ) : savedStock[p.id] ? (
-                        <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-green-500/20 text-green-400">
-                          <Check size={16} />
+                                  {/* Barra de estoque */}
+                                  {(() => {
+                                    const displayVal = pendingStock[p.id] ?? p.estoque;
+                                    const isDirty = pendingStock[p.id] !== undefined;
+                                    const isSaved = savedStock[p.id];
+                                    const pct = Math.round((displayVal / 60) * 100);
+                                    return (
+                                      <div className="flex items-center gap-3">
+                                        <div className="flex-1 flex flex-col items-center gap-1">
+                                          <span className={`text-2xl font-bold leading-none ${
+                                            displayVal === 0 ? 'text-red-400' : displayVal <= 5 ? 'text-orange-400' : isDirty ? 'text-primary' : 'text-green-400'
+                                          }`}>{displayVal}</span>
+                                          <input
+                                            type="range" min={0} max={60} value={displayVal}
+                                            onChange={(e) => onSliderChange(p.id, Number(e.target.value))}
+                                            style={{ background: `linear-gradient(to right, #ef4444, #22c55e ${pct}%, #2a2a3d ${pct}%)` }}
+                                            className="w-full h-1 rounded-full cursor-pointer appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-sm [&::-moz-range-thumb]:w-2.5 [&::-moz-range-thumb]:h-2.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-0"
+                                          />
+                                        </div>
+                                        {isSaved ? (
+                                          <div className="h-6 px-2 rounded flex items-center gap-0.5 bg-green-500/20 text-green-400 text-xs font-bold flex-shrink-0">
+                                            <Check size={11} /> OK
+                                          </div>
+                                        ) : isDirty ? (
+                                          <button onClick={() => confirmStock(p.id)} disabled={savingStock[p.id]}
+                                            className="h-6 px-2 rounded flex items-center gap-0.5 bg-primary text-white text-xs font-bold hover:bg-primary/80 active:scale-95 transition-all flex-shrink-0">
+                                            {savingStock[p.id] ? '...' : <><Check size={11} /> OK</>}
+                                          </button>
+                                        ) : null}
+                                      </div>
+                                    );
+                                  })()}
+                                </div>
+
+                                {/* Formulário de edição inline */}
+                                {editingId === p.id && (
+                                  <form onSubmit={handleUpdate} className="bg-surface border border-primary/40 rounded-xl mt-1 p-3 flex flex-col gap-3">
+                                    <p className="text-xs font-bold text-primary">Editar produto</p>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <input required placeholder="Marca" value={editForm.marca}
+                                        onChange={(e) => setEditForm((f) => ({ ...f, marca: e.target.value }))}
+                                        className="col-span-2 bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary" />
+                                      <input required placeholder="Sabor" value={editForm.sabor}
+                                        onChange={(e) => setEditForm((f) => ({ ...f, sabor: e.target.value }))}
+                                        className="col-span-2 bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary" />
+                                      <input placeholder="Descricao" value={editForm.descricao}
+                                        onChange={(e) => setEditForm((f) => ({ ...f, descricao: e.target.value }))}
+                                        className="col-span-2 bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary" />
+                                      <input required placeholder="Tamanho" value={editForm.tamanho}
+                                        onChange={(e) => setEditForm((f) => ({ ...f, tamanho: e.target.value }))}
+                                        className="bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary" />
+                                      <input placeholder="Emoji" value={editForm.emoji}
+                                        onChange={(e) => setEditForm((f) => ({ ...f, emoji: e.target.value }))}
+                                        className="bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary" />
+                                      <input required type="number" min="0" step="0.01" placeholder="Valor (R$)" value={editForm.valor}
+                                        onChange={(e) => setEditForm((f) => ({ ...f, valor: e.target.value }))}
+                                        className="bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary" />
+                                      <input type="number" min="0" step="0.01" placeholder="Custo (R$)" value={editForm.custo}
+                                        onChange={(e) => setEditForm((f) => ({ ...f, custo: e.target.value }))}
+                                        className="bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary" />
+                                      <input required type="number" min="0" placeholder="Estoque" value={editForm.estoque}
+                                        onChange={(e) => setEditForm((f) => ({ ...f, estoque: e.target.value }))}
+                                        className="bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary" />
+                                    </div>
+                                    {editError && <p className="text-xs text-red-400">{editError}</p>}
+                                    <div className="flex gap-2">
+                                      <button type="button" onClick={() => setEditingId(null)}
+                                        className="flex-1 border border-[#3d3d4d] text-muted rounded-xl py-2 text-sm font-semibold">
+                                        Cancelar
+                                      </button>
+                                      <button type="submit" disabled={editSaving}
+                                        className="flex-1 bg-primary text-white rounded-xl py-2 text-sm font-bold disabled:opacity-50">
+                                        {editSaving ? 'Salvando...' : 'Salvar'}
+                                      </button>
+                                    </div>
+                                  </form>
+                                )}
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      ) : (
-                        <button
-                          onClick={() => editingId === p.id ? setEditingId(null) : startEdit(p)}
-                          className={`w-8 h-8 rounded-xl flex items-center justify-center active:scale-95 transition-all ${
-                            editingId === p.id ? 'bg-primary/20 text-primary' : 'text-muted hover:text-primary hover:bg-primary/10'
-                          }`}
-                          title="Editar produto"
-                        >
-                          {editingId === p.id ? <X size={15} /> : <Pencil size={15} />}
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleDelete(p.id)}
-                        disabled={deletingId === p.id}
-                        className="w-8 h-8 rounded-xl flex items-center justify-center text-muted hover:text-red-400 hover:bg-red-400/10 active:scale-95 transition-all"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      ))}
                     </div>
                   </div>
-
-                  {/* Formulário de edição inline */}
-                  {editingId === p.id && (
-                    <form onSubmit={handleUpdate} className="bg-surface border border-primary/40 border-t-0 rounded-b-2xl -mt-2 pt-4 pb-4 px-4 flex flex-col gap-3">
-                      <p className="text-xs font-bold text-primary">Editar produto</p>
-                      <div className="grid grid-cols-2 gap-2">
-                        <input required placeholder="Marca" value={editForm.marca}
-                          onChange={(e) => setEditForm((f) => ({ ...f, marca: e.target.value }))}
-                          className="col-span-2 bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary" />
-                        <input required placeholder="Sabor" value={editForm.sabor}
-                          onChange={(e) => setEditForm((f) => ({ ...f, sabor: e.target.value }))}
-                          className="col-span-2 bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary" />
-                        <input placeholder="Descricao" value={editForm.descricao}
-                          onChange={(e) => setEditForm((f) => ({ ...f, descricao: e.target.value }))}
-                          className="col-span-2 bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary" />
-                        <input required placeholder="Tamanho" value={editForm.tamanho}
-                          onChange={(e) => setEditForm((f) => ({ ...f, tamanho: e.target.value }))}
-                          className="bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary" />
-                        <input placeholder="Emoji" value={editForm.emoji}
-                          onChange={(e) => setEditForm((f) => ({ ...f, emoji: e.target.value }))}
-                          className="bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary" />
-                        <input required type="number" min="0" step="0.01" placeholder="Valor (R$)" value={editForm.valor}
-                          onChange={(e) => setEditForm((f) => ({ ...f, valor: e.target.value }))}
-                          className="bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary" />
-                        <input type="number" min="0" step="0.01" placeholder="Custo (R$)" value={editForm.custo}
-                          onChange={(e) => setEditForm((f) => ({ ...f, custo: e.target.value }))}
-                          className="bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary" />
-                        <input required type="number" min="0" placeholder="Estoque" value={editForm.estoque}
-                          onChange={(e) => setEditForm((f) => ({ ...f, estoque: e.target.value }))}
-                          className="bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary" />
-                      </div>
-                      {editError && <p className="text-xs text-red-400">{editError}</p>}
-                      <div className="flex gap-2">
-                        <button type="button" onClick={() => setEditingId(null)}
-                          className="flex-1 border border-[#3d3d4d] text-muted rounded-xl py-2 text-sm font-semibold">
-                          Cancelar
-                        </button>
-                        <button type="submit" disabled={editSaving}
-                          className="flex-1 bg-primary text-white rounded-xl py-2 text-sm font-bold disabled:opacity-50">
-                          {editSaving ? 'Salvando...' : 'Salvar'}
-                        </button>
-                      </div>
-                    </form>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
 
         {/* ── FATURAMENTO ── */}
         {tab === 'faturamento' && <FaturamentoTab pedidos={pedidos} produtos={produtos} />}
+
+        {/* ── INVESTIMENTOS ── */}
+        {tab === 'investimentos' && <InvestimentosTab />}
 
         </main>
       </div>{/* /body flex */}

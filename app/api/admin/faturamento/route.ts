@@ -11,7 +11,7 @@ async function requireAdmin() {
 function periodoWhere(periodo: string): string {
   switch (periodo) {
     case 'hoje':
-      return `DATE(p.criado_em) = CURRENT_DATE`;
+      return `p.criado_em >= CURRENT_DATE AND p.criado_em < CURRENT_DATE + INTERVAL '1 day'`;
     case '7dias':
       return `p.criado_em >= CURRENT_DATE - INTERVAL '6 days'`;
     case 'mes_atual':
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 
   const periodo = req.nextUrl.searchParams.get('periodo') ?? 'mes_atual';
   const where = periodoWhere(periodo);
-  const statusFiltro = `p.status NOT IN ('cancelado', 'pendente')`;
+  const statusFiltro = `p.status != 'cancelado'`;
 
   const { rows } = await db.query(`
     SELECT

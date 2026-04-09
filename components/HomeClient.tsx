@@ -10,16 +10,13 @@ import { useAuth } from '@/context/AuthContext';
 import BottomNav from '@/components/BottomNav';
 import { formatPrice } from '@/lib/utils';
 
-// Mapa de logos por marca — coloque os arquivos em /public/brands/
-const BRAND_LOGOS: Record<string, string> = {
-  'BLACK SHEEP': '/brands/blacksheep.png',
-  'ELFBAR':      '/brands/elfbar.png',
-  'ELF':         '/brands/elf.png',
-  'IGNITE':      '/brands/ignite.png',
-  'LOST MARY':   '/brands/lostmary.png',
-  'LOST MIXER':  '/brands/lostmary.png',
-  'OXBAR':       '/brands/oxbar.png',
-};
+// Foto por marca+tamanho — nomeie o arquivo como: marca_tamanho.png
+// Exemplos: ignite_v400mix.png · blacksheep_40kice.png · lostmary_mr600.png
+// Regra: tudo minúsculo, espaços removidos, apenas letras/números
+function slugBrand(marca: string, tamanho: string) {
+  const slug = (s: string) => s.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '');
+  return `/brands/${slug(marca)}_${slug(tamanho)}.png`;
+}
 
 interface Props {
   produtos: Produto[];
@@ -170,29 +167,28 @@ export default function HomeClient({ produtos }: Props) {
                       className="text-left bg-surface border border-[#3d3d4d] rounded-2xl p-4 flex flex-col gap-3 hover:border-primary active:scale-[0.98] transition-all"
                     >
                       {/* Logo ou emoji */}
-                      <div className="rounded-xl w-full h-24 flex items-center justify-center text-4xl select-none overflow-hidden bg-[#0f0f1e]">
-                        {BRAND_LOGOS[grupo.marca] ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={BRAND_LOGOS[grupo.marca]}
-                            alt={grupo.marca}
-                            className="object-contain w-full h-full"
-                          />
-                        ) : grupo.sabores[0]?.emoji ?? '📦'}
+                      <div className="rounded-xl w-full h-48 flex items-center justify-center text-4xl select-none overflow-hidden bg-[#0f0f1e]">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={slugBrand(grupo.marca, grupo.tamanho)}
+                          alt={grupo.marca}
+                          className="object-contain w-full h-full"
+                          onError={(e) => {
+                            const el = e.currentTarget;
+                            el.style.display = 'none';
+                            const fallback = el.nextElementSibling as HTMLElement | null;
+                            if (fallback) fallback.style.display = 'block';
+                          }}
+                        />
+                        <span style={{ display: 'none' }}>{grupo.sabores[0]?.emoji ?? '📦'}</span>
                       </div>
 
                       {/* Info */}
-                      <div className="flex flex-col gap-1">
-                        <div className="flex flex-col gap-1">
-                          <span className="bg-primary text-white text-xs font-bold px-3 py-1 rounded-lg leading-tight self-start">
-                            {grupo.marca}
-                          </span>
-                          <span className="bg-[#2a2a3d] text-muted text-xs font-semibold px-3 py-1 rounded-lg leading-tight self-start">
-                            {grupo.tamanho}
-                          </span>
-                        </div>
-                        <p className="text-sm font-bold text-foreground mt-1 text-center">{formatPrice(grupo.valor)}</p>
-                        <p className="text-xs text-muted text-center">{grupo.sabores.length} sabor{grupo.sabores.length !== 1 ? 'es' : ''}</p>
+                      <div className="flex flex-col items-center gap-1 text-center">
+                        <p className="text-base font-extrabold text-foreground leading-tight">{grupo.marca}</p>
+                        <p className="text-sm font-semibold text-muted leading-tight">{grupo.tamanho}</p>
+                        <p className="text-sm font-bold text-foreground mt-3">{formatPrice(grupo.valor)}</p>
+                        <p className="text-xs text-muted">{grupo.sabores.length} sabor{grupo.sabores.length !== 1 ? 'es' : ''}</p>
                       </div>
                     </button>
                 ))}

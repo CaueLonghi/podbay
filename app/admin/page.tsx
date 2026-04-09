@@ -8,7 +8,7 @@ export default async function AdminPage() {
   if (!session || session.role !== 'admin') redirect('/');
 
   const { rows } = await db.query(
-    `SELECT id, marca, sabor, descricao, tamanho, valor, estoque, emoji, ativo
+    `SELECT id, marca, sabor, descricao, tamanho, valor, custo, estoque, emoji, ativo
      FROM catalogo ORDER BY marca, tamanho, sabor`
   );
 
