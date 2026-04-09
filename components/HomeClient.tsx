@@ -54,7 +54,12 @@ export default function HomeClient({ produtos }: Props) {
       }
       map.get(key)!.sabores.push(p);
     }
-    return Array.from(map.values());
+    return Array.from(map.values()).sort((a, b) => {
+      // Grupos com NOVO primeiro
+      const aN = a.sabores.some((s) => s.novo) ? 0 : 1;
+      const bN = b.sabores.some((s) => s.novo) ? 0 : 1;
+      return aN - bN;
+    });
   }, [produtos]);
 
   const filtered = grupos.filter((g) => {
@@ -165,31 +170,38 @@ export default function HomeClient({ produtos }: Props) {
                     <button
                       key={grupo.key}
                       onClick={() => setModalGrupo(grupo)}
-                      className="text-left bg-surface border border-[#3d3d4d] rounded-2xl p-4 flex flex-col gap-3 hover:border-primary active:scale-[0.98] transition-all"
+                      className="text-left bg-surface border border-[#3d3d4d] rounded-2xl overflow-hidden flex flex-col gap-3 hover:border-primary active:scale-[0.98] transition-all"
                     >
                       {/* Logo ou emoji */}
-                      <div className="rounded-xl w-full h-48 flex items-center justify-center text-4xl select-none overflow-hidden bg-[#0f0f1e]">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={slugBrand(grupo.marca, grupo.tamanho)}
-                          alt={grupo.marca}
-                          className="object-contain w-full h-full"
-                          onError={(e) => {
-                            const el = e.currentTarget;
-                            el.style.display = 'none';
-                            const fallback = el.nextElementSibling as HTMLElement | null;
-                            if (fallback) fallback.style.display = 'block';
-                          }}
-                        />
-                        <span style={{ display: 'none' }}>{grupo.sabores[0]?.emoji ?? '📦'}</span>
-                      </div>
+                      <div className="px-4 pb-4 flex flex-col gap-3">
+                        <div className="rounded-xl w-full h-48 flex flex-col select-none overflow-hidden bg-[#0f0f1e] relative mt-4">
+                          {grupo.sabores.some((s) => s.novo) && (
+                            <div className="w-full bg-orange-500 text-white text-[10px] font-extrabold text-center py-0.5 tracking-widest z-10">
+                              NOVO
+                            </div>
+                          )}
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={slugBrand(grupo.marca, grupo.tamanho)}
+                            alt={grupo.marca}
+                            className="object-contain w-full flex-1 min-h-0"
+                            onError={(e) => {
+                              const el = e.currentTarget;
+                              el.style.display = 'none';
+                              const fallback = el.nextElementSibling as HTMLElement | null;
+                              if (fallback) fallback.style.display = 'flex';
+                            }}
+                          />
+                          <span style={{ display: 'none' }} className="flex-1 flex items-center justify-center text-4xl">{grupo.sabores[0]?.emoji ?? '📦'}</span>
+                        </div>
 
-                      {/* Info */}
-                      <div className="flex flex-col items-center gap-1 text-center">
-                        <p className="text-base font-extrabold text-foreground leading-tight">{grupo.marca}</p>
-                        <p className="text-sm font-semibold text-muted leading-tight">{grupo.tamanho}</p>
-                        <p className="text-sm font-bold text-foreground mt-3">{formatPrice(grupo.valor)}</p>
-                        <p className="text-xs text-muted">{grupo.sabores.length} sabor{grupo.sabores.length !== 1 ? 'es' : ''}</p>
+                        {/* Info */}
+                        <div className="flex flex-col items-center gap-1 text-center">
+                          <p className="text-base font-extrabold text-foreground leading-tight">{grupo.marca}</p>
+                          <p className="text-sm font-semibold text-muted leading-tight">{grupo.tamanho}</p>
+                          <p className="text-sm font-bold text-foreground mt-3">{formatPrice(grupo.valor)}</p>
+                          <p className="text-xs text-muted">{grupo.sabores.length} sabor{grupo.sabores.length !== 1 ? 'es' : ''}</p>
+                        </div>
                       </div>
                     </button>
                 ))}

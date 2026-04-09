@@ -14,13 +14,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id: rawId } = await params;
   const id = Number(rawId);
   const body = await req.json();
-  const { estoque } = body;
+  const { estoque, novo } = body;
 
-  if (estoque === undefined || isNaN(Number(estoque))) {
-    return NextResponse.json({ error: 'estoque invalido' }, { status: 400 });
+  if (estoque !== undefined) {
+    if (isNaN(Number(estoque))) return NextResponse.json({ error: 'estoque invalido' }, { status: 400 });
+    await db.query('UPDATE catalogo SET estoque = $1 WHERE id = $2', [Number(estoque), id]);
+  } else if (novo !== undefined) {
+    await db.query('UPDATE catalogo SET novo = $1 WHERE id = $2', [Boolean(novo), id]);
+  } else {
+    return NextResponse.json({ error: 'campo invalido' }, { status: 400 });
   }
-
-  await db.query('UPDATE catalogo SET estoque = $1 WHERE id = $2', [Number(estoque), id]);
   return NextResponse.json({ ok: true });
 }
 

@@ -9,11 +9,12 @@ export interface Produto {
   valor: number;
   estoque: number;
   emoji: string | null;
+  novo: boolean;
 }
 
 export async function getProdutos(): Promise<Produto[]> {
   const { rows } = await db.query(
-    `SELECT id, marca, sabor, descricao, tamanho, valor, estoque, emoji
+    `SELECT id, marca, sabor, descricao, tamanho, valor, estoque, emoji, novo
      FROM catalogo
      WHERE ativo = true
      ORDER BY marca, sabor`

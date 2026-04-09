@@ -17,6 +17,7 @@ interface Produto {
   estoque: number;
   emoji: string | null;
   ativo: number;
+  novo: boolean;
 }
 
 interface ItemPedido {
@@ -695,6 +696,7 @@ export default function AdminClient({ produtos: initial }: Props) {
         estoque: Number(form.estoque),
         emoji: form.emoji || null,
         ativo: 1,
+        novo: false,
       }]);
       setForm(emptyForm);
       setShowForm(false);
@@ -1152,6 +1154,27 @@ export default function AdminClient({ produtos: initial }: Props) {
                           <div className="flex items-center gap-2 pb-1 border-b border-[#3d3d4d]">
                             <span className="text-xs font-bold text-foreground">{tamanho}</span>
                             <span className="text-[10px] text-muted">{prods.length} sabor{prods.length !== 1 ? 'es' : ''}</span>
+                            <label className="flex items-center gap-1 cursor-pointer ml-auto">
+                              <input
+                                type="checkbox"
+                                checked={prods.some((p) => p.novo)}
+                                onChange={async (e) => {
+                                  const novoVal = e.target.checked;
+                                  setProdutos((prev) => prev.map((x) =>
+                                    prods.some((p) => p.id === x.id) ? { ...x, novo: novoVal } : x
+                                  ));
+                                  await Promise.all(prods.map((p) =>
+                                    fetch(`/api/admin/catalogo/${p.id}`, {
+                                      method: 'PATCH',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ novo: novoVal }),
+                                    })
+                                  ));
+                                }}
+                                className="w-3.5 h-3.5 accent-orange-400 cursor-pointer"
+                              />
+                              <span className="text-[10px] font-extrabold text-orange-400">NOVO</span>
+                            </label>
                           </div>
 
                           {/* Sabores deste tamanho */}
@@ -1189,28 +1212,30 @@ export default function AdminClient({ produtos: initial }: Props) {
                                     const isSaved = savedStock[p.id];
                                     const pct = Math.round((displayVal / 60) * 100);
                                     return (
-                                      <div className="flex items-center gap-3">
-                                        <div className="flex-1 flex flex-col items-center gap-1">
-                                          <span className={`text-2xl font-bold leading-none ${
-                                            displayVal === 0 ? 'text-red-400' : displayVal <= 5 ? 'text-orange-400' : isDirty ? 'text-primary' : 'text-green-400'
-                                          }`}>{displayVal}</span>
-                                          <input
-                                            type="range" min={0} max={60} value={displayVal}
-                                            onChange={(e) => onSliderChange(p.id, Number(e.target.value))}
-                                            style={{ background: `linear-gradient(to right, #ef4444, #22c55e ${pct}%, #2a2a3d ${pct}%)` }}
-                                            className="w-full h-1 rounded-full cursor-pointer appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-sm [&::-moz-range-thumb]:w-2.5 [&::-moz-range-thumb]:h-2.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-0"
-                                          />
-                                        </div>
-                                        {isSaved ? (
-                                          <div className="h-6 px-2 rounded flex items-center gap-0.5 bg-green-500/20 text-green-400 text-xs font-bold flex-shrink-0">
-                                            <Check size={11} /> OK
+                                      <div className="flex flex-col gap-2">
+                                        <div className="flex items-center gap-3">
+                                          <div className="flex-1 flex flex-col items-center gap-1">
+                                            <span className={`text-2xl font-bold leading-none ${
+                                              displayVal === 0 ? 'text-red-400' : displayVal <= 5 ? 'text-orange-400' : isDirty ? 'text-primary' : 'text-green-400'
+                                            }`}>{displayVal}</span>
+                                            <input
+                                              type="range" min={0} max={60} value={displayVal}
+                                              onChange={(e) => onSliderChange(p.id, Number(e.target.value))}
+                                              style={{ background: `linear-gradient(to right, #ef4444, #22c55e ${pct}%, #2a2a3d ${pct}%)` }}
+                                              className="w-full h-1 rounded-full cursor-pointer appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-sm [&::-moz-range-thumb]:w-2.5 [&::-moz-range-thumb]:h-2.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-0"
+                                            />
                                           </div>
-                                        ) : isDirty ? (
-                                          <button onClick={() => confirmStock(p.id)} disabled={savingStock[p.id]}
-                                            className="h-6 px-2 rounded flex items-center gap-0.5 bg-primary text-white text-xs font-bold hover:bg-primary/80 active:scale-95 transition-all flex-shrink-0">
-                                            {savingStock[p.id] ? '...' : <><Check size={11} /> OK</>}
-                                          </button>
-                                        ) : null}
+                                          {isSaved ? (
+                                            <div className="h-6 px-2 rounded flex items-center gap-0.5 bg-green-500/20 text-green-400 text-xs font-bold flex-shrink-0">
+                                              <Check size={11} /> OK
+                                            </div>
+                                          ) : isDirty ? (
+                                            <button onClick={() => confirmStock(p.id)} disabled={savingStock[p.id]}
+                                              className="h-6 px-2 rounded flex items-center gap-0.5 bg-primary text-white text-xs font-bold hover:bg-primary/80 active:scale-95 transition-all flex-shrink-0">
+                                              {savingStock[p.id] ? '...' : <><Check size={11} /> OK</>}
+                                            </button>
+                                          ) : null}
+                                        </div>
                                       </div>
                                     );
                                   })()}
