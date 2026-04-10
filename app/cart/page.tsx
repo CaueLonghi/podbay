@@ -63,7 +63,7 @@ export default function CartPage() {
   const [finishing, setFinishing] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [waUrl, setWaUrl] = useState('');
+
   const [formError, setFormError] = useState('');
   const [form, setForm] = useState(emptyForm);
   const [pedidoPendente, setPedidoPendente] = useState(false);
@@ -157,41 +157,9 @@ export default function CartPage() {
     if (!canFinish() || finishing) return;
     setFinishing(true);
 
-    // Monta a mensagem do WhatsApp antes de qualquer coisa
-    const lista = items.map((item, i) => {
-      const qty = item.quantity > 1 ? ` x${item.quantity}` : '';
-      const subtotal = item.quantity > 1 ? ` (subtotal: ${formatPrice(item.price * item.quantity)})` : '';
-      return `${i + 1}) *${item.marca} ${item.tamanho}*\n    ${item.sabor}${qty} - ${formatPrice(item.price)}${subtotal}`;
-    }).join('\n');
-
-    let linhasEntrega: string[];
-    if (modalidade === 'entrega' && principal) {
-      const complemento = principal.complemento ? ` / ${principal.complemento}` : '';
-      const apelido = principal.apelido ? ` (${principal.apelido})` : '';
-      linhasEntrega = [
-        `*Endereco de entrega:*${apelido}`,
-        `${principal.logradouro}, ${principal.numero}${complemento}`,
-        `${principal.bairro} - ${principal.cidade}/${principal.estado}`,
-        `CEP: ${principal.cep}`,
-      ];
-    } else {
-      linhasEntrega = [`*Retirada no local*`, `Horario: ${horario}`];
-    }
-
-    const msg = [
-      `*Gostaria de fazer um pedido!*`, ``,
-      `*Itens:*`, lista, ``,
-      `*Total: ${formatPrice(totalPrice)}*`,
-      `*Pagamento: ${pagamento === 'pix' ? 'PIX' : 'Dinheiro'}*`, ``,
-      ...linhasEntrega,
-      ...(observacao.trim() ? [``, `*Observacao:* ${observacao.trim()}`] : []),
-    ].join('\n');
-
-    const url = `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(msg)}`;
-    setWaUrl(url);
-
     try {
-      const res = await fetch('/api/pedidos', {
+      // 1. Cria o pedido no banco
+      const resPedido = await fetch('/api/pedidos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -210,15 +178,45 @@ export default function CartPage() {
         }),
       });
 
-      if (!res.ok) throw new Error('api_error');
+      if (!resPedido.ok) throw new Error('pedido_error');
+      const { pedido_id } = await resPedido.json();
 
-      // Sucesso: mostra modal e redireciona para WA após 3s
-      finishOrder();
-      setShowSuccessModal(true);
-      setTimeout(() => {
-        setShowSuccessModal(false);
-        window.open(url, '_blank');
-      }, 5000);
+      // 2a. Dinheiro (retirada) → redireciona para WhatsApp
+      if (pagamento === 'dinheiro') {
+        const lista = items.map((item, i) => {
+          const qty = item.quantity > 1 ? ` x${item.quantity}` : '';
+          const subtotal = item.quantity > 1 ? ` (subtotal: ${formatPrice(item.price * item.quantity)})` : '';
+          return `${i + 1}) *${item.marca} ${item.tamanho}*\n    ${item.sabor}${qty} - ${formatPrice(item.price)}${subtotal}`;
+        }).join('\n');
+        const msg = [
+          `*Gostaria de fazer um pedido!*`, ``,
+          `*Itens:*`, lista, ``,
+          `*Total: ${formatPrice(totalPrice)}*`,
+          `*Pagamento: Dinheiro*`, ``,
+          `*Retirada no local* — Horario: ${horario}`,
+          ...(observacao.trim() ? [``, `*Observacao:* ${observacao.trim()}`] : []),
+        ].join('\n');
+        finishOrder();
+        setShowSuccessModal(true);
+        const waUrl = `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(msg)}`;
+        setTimeout(() => {
+          setShowSuccessModal(false);
+          window.open(waUrl, '_blank');
+        }, 3000);
+        return;
+      }
+
+      // 2b. PIX / Cartão → gera link InfinitePay
+      const resPag = await fetch('/api/pagamento/criar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pedido_id }),
+      });
+
+      if (!resPag.ok) throw new Error('pagamento_error');
+      const { url } = await resPag.json();
+
+      window.location.href = url;
     } catch {
       setShowErrorModal(true);
     } finally {

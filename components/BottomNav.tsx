@@ -16,10 +16,8 @@ export default function BottomNav() {
   const { totalQty } = useCart();
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-1/2 w-full max-w-mobile border-t border-[#3d3d4d] bg-[#1f1f2e] z-40"
-      style={{ transform: 'translateX(-50%)' }}
-    >
-      <div className="flex items-center justify-around h-16 px-2">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t border-[#3d3d4d] bg-[#1f1f2e] z-40">
+      <div className="w-full max-w-screen-xl mx-auto flex items-center justify-around h-16 px-2">
         {navItems.map(({ label, href, icon: Icon }) => {
           const isActive = pathname === href;
           const color = isActive ? '#a78bfa' : '#6b7280';

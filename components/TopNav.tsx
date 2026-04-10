@@ -35,17 +35,19 @@ export default function TopNav() {
   };
 
   return (
-    <nav className="hidden md:flex sticky top-0 z-40 bg-surface/95 backdrop-blur-sm border-b border-[#3d3d4d] px-8 h-14 items-center justify-between gap-6">
-      <Link href="/" className="shrink-0">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logos/escritaPodBay.png" alt="PodBay" className="h-8 object-contain" />
-      </Link>
+    <nav className="hidden md:flex sticky top-0 z-40 bg-surface/95 backdrop-blur-sm border-b border-[#3d3d4d] h-20 items-center">
+      <div className="w-full max-w-screen-xl mx-auto px-8 flex items-center justify-between">
+        <Link href="/" className="shrink-0">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logos/escritaPodBay.png" alt="PodBay" className="h-16 object-contain" />
+        </Link>
 
-      <div className="flex items-center gap-1">
-        {user?.role === 'admin' && link('/admin', 'Admin', <ShieldCheck size={16} />)}
-        {link('/', 'Início', <Home size={16} />)}
-        {link('/cart', 'Carrinho', <ShoppingBag size={16} />, totalQty)}
-        {link('/profile', 'Perfil', <User size={16} />)}
+        <div className="flex items-center gap-1">
+          {user?.role === 'admin' && link('/admin', 'Admin', <ShieldCheck size={16} />)}
+          {link('/', 'Início', <Home size={16} />)}
+          {link('/cart', 'Carrinho', <ShoppingBag size={16} />, totalQty)}
+          {link('/profile', 'Perfil', <User size={16} />)}
+        </div>
       </div>
     </nav>
   );

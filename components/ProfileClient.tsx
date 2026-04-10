@@ -342,7 +342,7 @@ export default function ProfileClient({ usuario, enderecos: initial }: Props) {
         </main>
 
         {/* Meus Pedidos */}
-        <div className="w-full max-w-screen-md mx-auto px-4 md:px-8 pb-2">
+        <div className="w-full max-w-screen-md mx-auto px-4 md:px-8 pb-2 mt-6">
           <div className="bg-surface border border-[#3d3d4d] rounded-2xl p-4 flex flex-col gap-3">
             <div className="flex items-center gap-2">
               <ShoppingBag size={16} className="text-muted" />
