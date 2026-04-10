@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { CheckCircle2, XCircle, Loader2, ExternalLink } from 'lucide-react';
@@ -10,13 +10,26 @@ import { formatPrice } from '@/lib/utils';
 type Status = 'aguardando' | 'pago' | 'pagamento_recusado' | 'erro';
 
 export default function PedidoConfirmadoPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#0f0f1e' }}>
+        <Loader2 size={48} className="text-primary animate-spin" />
+      </div>
+    }>
+      <PedidoConfirmadoContent />
+    </Suspense>
+  );
+}
+
+function PedidoConfirmadoContent() {
   const params = useSearchParams();
   const router = useRouter();
   const { finishOrder } = useCart();
 
   const pedidoId = params.get('order_nsu');
+  const receiptFromUrl = params.get('receipt_url');
   const [status, setStatus] = useState<Status>('aguardando');
-  const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
+  const [receiptUrl, setReceiptUrl] = useState<string | null>(receiptFromUrl);
   const [valorTotal, setValorTotal] = useState<number | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const cartCleared = useRef(false);
