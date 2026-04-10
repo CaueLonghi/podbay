@@ -1,5 +1,5 @@
 const HANDLE = process.env.INFINITEPAY_HANDLE ?? 'leonardoluc';
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://podbay.vercel.app';
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://podbay-dev.vercel.app';
 const API = 'https://api.infinitepay.io/invoices/public/checkout';
 
 export interface ItemIP {
