@@ -40,10 +40,16 @@ export async function POST(req: NextRequest) {
     itemsIP.push({ description: 'Frete Uber Moto', quantity: 1, price: Math.round(valorFrete * 100) });
   }
 
-  // Adiciona desconto como item negativo se houver cupom aplicado
+  // Aplica desconto reduzindo o preço dos itens (InfinitePay não aceita preço negativo)
   const desconto = Number(pedido.desconto ?? 0);
   if (desconto > 0) {
-    itemsIP.push({ description: 'Desconto cupom', quantity: 1, price: -Math.round(desconto * 100) });
+    let remaining = Math.round(desconto * 100);
+    for (let i = 0; i < itemsIP.length && remaining > 0; i++) {
+      const maxReduction = (itemsIP[i].price - 1) * itemsIP[i].quantity;
+      const reduction = Math.min(remaining, Math.max(0, maxReduction));
+      itemsIP[i].price = Math.max(1, itemsIP[i].price - Math.floor(reduction / itemsIP[i].quantity));
+      remaining -= reduction;
+    }
   }
 
   try {
