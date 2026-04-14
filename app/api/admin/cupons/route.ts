@@ -4,7 +4,7 @@ import { db } from '@/lib/db';
 
 async function requireAdmin() {
   const user = await getSessionUser();
-  if (!user || !user.admin) return null;
+  if (!user || user.role !== 'admin') return null;
   return user;
 }
 
