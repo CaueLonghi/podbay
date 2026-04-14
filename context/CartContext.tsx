@@ -15,44 +15,56 @@ export interface CartItem {
   emoji: string;
 }
 
+export interface CartCupom {
+  codigo: string;
+  valor: number;
+  nome: string;
+}
+
 interface CartContextValue {
   items: CartItem[];
+  cupom: CartCupom | null;
   addToCart: (produto: Produto) => void;
   changeQty: (id: string, delta: number) => void;
   finishOrder: () => void;
   clearCart: () => void;
+  setCupom: (c: CartCupom | null) => void;
   totalQty: number;
   totalPrice: number;
 }
 
 const CartContext = createContext<CartContextValue>({
   items: [],
+  cupom: null,
   addToCart: () => {},
   changeQty: () => {},
   finishOrder: () => {},
   clearCart: () => {},
+  setCupom: () => {},
   totalQty: 0,
   totalPrice: 0,
 });
 
 const STORAGE_KEY = 'podbay_cart';
+const CUPOM_KEY = 'podbay_cupom';
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
+  const [cupom, setCupomState] = useState<CartCupom | null>(null);
 
   // Load from localStorage on mount
   useEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        setItems(JSON.parse(stored));
-      }
-    } catch {
-      // ignore parse errors
-    }
+      if (stored) setItems(JSON.parse(stored));
+    } catch { /* ignore */ }
+    try {
+      const storedCupom = localStorage.getItem(CUPOM_KEY);
+      if (storedCupom) setCupomState(JSON.parse(storedCupom));
+    } catch { /* ignore */ }
   }, []);
 
-  // Persist to localStorage on change
+  // Persist items to localStorage on change
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
   }, [items]);
@@ -82,27 +94,40 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const changeQty = useCallback((id: string, delta: number) => {
-    setItems((prev) => {
-      return prev
+    setItems((prev) =>
+      prev
         .map((i) => (i.id === id ? { ...i, quantity: i.quantity + delta } : i))
-        .filter((i) => i.quantity > 0);
-    });
+        .filter((i) => i.quantity > 0)
+    );
+  }, []);
+
+  const setCupom = useCallback((c: CartCupom | null) => {
+    setCupomState(c);
+    if (c) {
+      localStorage.setItem(CUPOM_KEY, JSON.stringify(c));
+    } else {
+      localStorage.removeItem(CUPOM_KEY);
+    }
   }, []);
 
   const finishOrder = useCallback(() => {
     setItems([]);
+    setCupomState(null);
+    localStorage.removeItem(CUPOM_KEY);
   }, []);
 
   const clearCart = useCallback(() => {
     setItems([]);
+    setCupomState(null);
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(CUPOM_KEY);
   }, []);
 
   const totalQty = items.reduce((sum, i) => sum + i.quantity, 0);
   const totalPrice = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
   return (
-    <CartContext.Provider value={{ items, addToCart, changeQty, finishOrder, clearCart, totalQty, totalPrice }}>
+    <CartContext.Provider value={{ items, cupom, addToCart, changeQty, finishOrder, clearCart, setCupom, totalQty, totalPrice }}>
       {children}
     </CartContext.Provider>
   );

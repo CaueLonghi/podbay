@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, FormEvent } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Plus, Trash2, PackageSearch, TrendingUp, ShoppingBag, Check, Pencil, X, MapPin, CreditCard, Clock, Truck, Store } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, PackageSearch, TrendingUp, ShoppingBag, Check, Pencil, X, MapPin, CreditCard, Clock, Truck, Store, Tag } from 'lucide-react';
 import { formatPrice } from '@/lib/utils';
 import InvestimentosTab from '@/components/InvestimentosTab';
 
@@ -59,7 +59,7 @@ interface Props {
   produtos: Produto[];
 }
 
-type Tab = 'vendas' | 'estoque' | 'faturamento' | 'investimentos';
+type Tab = 'vendas' | 'estoque' | 'faturamento' | 'investimentos' | 'promocoes';
 type StatusPedido = 'pendente' | 'pago' | 'enviado' | 'entregue' | 'cancelado';
 type ModalidadeFiltro = 'all' | 'entrega' | 'retirada';
 
@@ -529,6 +529,156 @@ function FaturamentoTab({ pedidos, produtos }: { pedidos: Pedido[]; produtos: Pr
   );
 }
 
+// ── PromocoesTab ─────────────────────────────────────────────
+interface Cupom {
+  id: number;
+  nome: string;
+  codigo: string;
+  valor: number;
+  quantidade_total: number;
+  quantidade_usada: number;
+  ativo: boolean;
+  criado_em: string;
+}
+
+const emptyFormCupom = { nome: '', codigo: '', valor: '', quantidade_total: '1' };
+
+function PromocoesTab() {
+  const [cupons, setCupons] = useState<Cupom[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState(emptyFormCupom);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
+
+  function fetchCupons() {
+    setLoading(true);
+    fetch('/api/admin/cupons')
+      .then((r) => r.json())
+      .then((d) => setCupons(d.cupons ?? []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(() => { fetchCupons(); }, []);
+
+  async function handleCreate(e: FormEvent) {
+    e.preventDefault();
+    setFormError('');
+    if (!form.nome || !form.codigo || !form.valor || !form.quantidade_total) {
+      setFormError('Preencha todos os campos');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch('/api/admin/cupons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nome: form.nome,
+          codigo: form.codigo.toUpperCase(),
+          valor: Number(form.valor),
+          quantidade_total: Number(form.quantidade_total),
+        }),
+      });
+      if (!res.ok) { const d = await res.json(); setFormError(d.error ?? 'Erro ao criar'); return; }
+      setForm(emptyFormCupom);
+      fetchCupons();
+    } catch { setFormError('Erro de conexao'); }
+    finally { setSaving(false); }
+  }
+
+  async function toggleAtivo(c: Cupom) {
+    await fetch(`/api/admin/cupons/${c.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ativo: !c.ativo }),
+    });
+    fetchCupons();
+  }
+
+  async function handleDelete(id: number) {
+    if (!confirm('Excluir este cupom?')) return;
+    await fetch(`/api/admin/cupons/${id}`, { method: 'DELETE' });
+    fetchCupons();
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Formulário criar cupom */}
+      <div className="bg-surface border border-[#3d3d4d] rounded-2xl p-5">
+        <h2 className="text-sm font-bold text-foreground mb-4">Novo Cupom</h2>
+        <form onSubmit={handleCreate} className="flex flex-col gap-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-muted font-medium">Nome</label>
+              <input value={form.nome} onChange={(e) => setForm((p) => ({ ...p, nome: e.target.value }))}
+                placeholder="Ex: Lançamento" className="bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-muted font-medium">Código</label>
+              <input value={form.codigo} onChange={(e) => setForm((p) => ({ ...p, codigo: e.target.value.toUpperCase() }))}
+                placeholder="Ex: PROMO10" className="bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary uppercase" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-muted font-medium">Valor (R$)</label>
+              <input type="number" min="0.01" step="0.01" value={form.valor} onChange={(e) => setForm((p) => ({ ...p, valor: e.target.value }))}
+                placeholder="Ex: 10.00" className="bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-muted font-medium">Quantidade</label>
+              <input type="number" min="1" step="1" value={form.quantidade_total} onChange={(e) => setForm((p) => ({ ...p, quantidade_total: e.target.value }))}
+                className="bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary" />
+            </div>
+          </div>
+          {formError && <p className="text-xs text-red-400">{formError}</p>}
+          <button type="submit" disabled={saving}
+            className="self-start flex items-center gap-2 bg-primary text-white rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-secondary disabled:opacity-40">
+            <Plus size={16} /> {saving ? 'Criando...' : 'Criar Cupom'}
+          </button>
+        </form>
+      </div>
+
+      {/* Lista de cupons */}
+      <div className="bg-surface border border-[#3d3d4d] rounded-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-[#3d3d4d]">
+          <h2 className="text-sm font-bold text-foreground">Cupons cadastrados</h2>
+        </div>
+        {loading ? (
+          <p className="text-sm text-muted px-5 py-6">Carregando...</p>
+        ) : cupons.length === 0 ? (
+          <p className="text-sm text-muted px-5 py-6">Nenhum cupom cadastrado.</p>
+        ) : (
+          <div className="divide-y divide-[#3d3d4d]">
+            {cupons.map((c) => (
+              <div key={c.id} className="px-5 py-4 flex items-center justify-between gap-4">
+                <div className="flex flex-col gap-0.5 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-foreground">{c.codigo}</span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${c.ativo ? 'text-green-400 bg-green-400/10 border-green-400/30' : 'text-muted bg-surface border-[#3d3d4d]'}`}>
+                      {c.ativo ? 'Ativo' : 'Inativo'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted truncate">{c.nome} · {formatPrice(Number(c.valor))} · {c.quantidade_usada}/{c.quantidade_total} usados</p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button onClick={() => toggleAtivo(c)}
+                    className="text-xs px-3 py-1.5 rounded-lg border border-[#3d3d4d] text-muted hover:text-foreground hover:border-primary transition-colors">
+                    {c.ativo ? 'Desativar' : 'Ativar'}
+                  </button>
+                  <button onClick={() => handleDelete(c.id)}
+                    className="text-xs px-3 py-1.5 rounded-lg border border-red-400/30 text-red-400 hover:bg-red-400/10 transition-colors">
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function AdminClient({ produtos: initial }: Props) {
   const [tab, setTab] = useState<Tab>('estoque');
 
@@ -762,6 +912,7 @@ export default function AdminClient({ produtos: initial }: Props) {
     { key: 'estoque',       label: 'Estoque',       icon: <PackageSearch size={16} /> },
     { key: 'faturamento',   label: 'Faturamento',   icon: <TrendingUp size={16} /> },
     { key: 'investimentos', label: 'Investimentos', icon: <span className="text-sm">💰</span> },
+    { key: 'promocoes',     label: 'Promoções',     icon: <Tag size={16} /> },
   ];
 
   return (
@@ -1302,6 +1453,9 @@ export default function AdminClient({ produtos: initial }: Props) {
 
         {/* ── INVESTIMENTOS ── */}
         {tab === 'investimentos' && <InvestimentosTab />}
+
+        {/* ── PROMOÇÕES ── */}
+        {tab === 'promocoes' && <PromocoesTab />}
 
         </main>
       </div>{/* /body flex */}

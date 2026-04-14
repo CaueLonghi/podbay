@@ -16,12 +16,14 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Nao autenticado' }, { status: 401 });
 
   const body = await req.json();
-  const { itens, modalidade, metodo_pagamento, endereco_id, horario_retirada } = body as {
+  const { itens, modalidade, metodo_pagamento, endereco_id, horario_retirada, valor_frete, cupom_codigo } = body as {
     itens: ItemPayload[];
     modalidade: 'entrega' | 'retirada';
     metodo_pagamento: 'dinheiro' | 'pix' | null;
     endereco_id: number | null;
     horario_retirada: string | null;
+    valor_frete?: number;
+    cupom_codigo?: string;
   };
 
   if (!itens || itens.length === 0) {
@@ -60,15 +62,34 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Valida e aplica cupom atomicamente
+  let desconto = 0;
+  if (cupom_codigo?.trim()) {
+    const { rows: cupomRows } = await db.query(
+      `UPDATE cupons
+       SET quantidade_usada = quantidade_usada + 1
+       WHERE UPPER(codigo) = UPPER($1)
+         AND ativo = true
+         AND quantidade_usada < quantidade_total
+       RETURNING valor`,
+      [cupom_codigo.trim()]
+    );
+    if (cupomRows.length === 0) {
+      return NextResponse.json({ error: 'Cupom nao disponivel ou esgotado' }, { status: 409 });
+    }
+    desconto = Number(cupomRows[0].valor);
+  }
+
   const valor_subtotal = itens.reduce((s, i) => s + i.valor_unitario * i.quantidade, 0);
-  const valor_total = valor_subtotal;
+  const frete = Number(valor_frete ?? 0);
+  const valor_total = Math.max(0, valor_subtotal + frete - desconto);
 
   try {
     const { rows: [pedido] } = await db.query(
       `INSERT INTO pedidos
          (usuario_id, modalidade, metodo_pagamento, endereco_id, horario_retirada,
           valor_subtotal, desconto, valor_frete, valor_total, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 0, 0, $7, 'pendente') RETURNING id`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pendente') RETURNING id`,
       [
         Number(user.id),
         modalidade,
@@ -76,6 +97,8 @@ export async function POST(req: NextRequest) {
         endereco_id ?? null,
         horario_retirada ?? null,
         valor_subtotal,
+        desconto,
+        frete,
         valor_total,
       ]
     );

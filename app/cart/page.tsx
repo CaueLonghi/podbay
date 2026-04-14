@@ -47,7 +47,7 @@ function gerarHorarios(): string[] {
 const HORARIOS = gerarHorarios();
 
 export default function CartPage() {
-  const { items, finishOrder, totalPrice } = useCart();
+  const { items, finishOrder, totalPrice, cupom: cupomInfo, setCupom } = useCart();
   const { showToast } = useToast();
   const { user } = useAuth();
 
@@ -67,6 +67,12 @@ export default function CartPage() {
   const [formError, setFormError] = useState('');
   const [form, setForm] = useState(emptyForm);
   const [pedidoPendente, setPedidoPendente] = useState(false);
+  const [freteInfo, setFreteInfo] = useState<{ frete: number; produto: string } | null>(null);
+  const [loadingFrete, setLoadingFrete] = useState(false);
+
+  const [cupomInput, setCupomInput] = useState('');
+  const [cupomError, setCupomError] = useState('');
+  const [loadingCupom, setLoadingCupom] = useState(false);
 
   const principal = enderecos.find((e) => e.principal === true) ?? null;
 
@@ -90,6 +96,21 @@ export default function CartPage() {
       .finally(() => setLoadingAddr(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
+
+  // Busca estimativa de frete quando entrega + endereço selecionado
+  useEffect(() => {
+    if (modalidade !== 'entrega' || !principal) {
+      setFreteInfo(null);
+      return;
+    }
+    setLoadingFrete(true);
+    fetch(`/api/frete/estimar?endereco_id=${principal.id}`)
+      .then((r) => r.json())
+      .then((d) => setFreteInfo({ frete: Number(d.frete ?? 0), produto: d.produto ?? 'Frete' }))
+      .catch(() => setFreteInfo({ frete: 0, produto: 'Frete' }))
+      .finally(() => setLoadingFrete(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modalidade, principal?.id]);
 
   async function fetchCep(cep: string) {
     const digits = cep.replace(/\D/g, '');
@@ -148,6 +169,27 @@ export default function CartPage() {
     }
   }
 
+  async function handleAplicarCupom() {
+    const codigo = cupomInput.trim().toUpperCase();
+    if (!codigo) return;
+    setLoadingCupom(true);
+    setCupomError('');
+    setCupom(null);
+    try {
+      const res = await fetch(`/api/cupom/validar?codigo=${encodeURIComponent(codigo)}`);
+      const data = await res.json();
+      if (data.valido) {
+        setCupom({ codigo, valor: data.valor, nome: data.nome });
+      } else {
+        setCupomError(data.mensagem ?? 'Cupom invalido');
+      }
+    } catch {
+      setCupomError('Erro ao validar cupom');
+    } finally {
+      setLoadingCupom(false);
+    }
+  }
+
   function canFinish() {
     return !pedidoPendente && !!modalidade && !!pagamento &&
       (modalidade === 'entrega' ? !!principal : !!horario);
@@ -159,6 +201,7 @@ export default function CartPage() {
 
     try {
       // 1. Cria o pedido no banco
+      const valorFrete = modalidade === 'entrega' && freteInfo ? freteInfo.frete : 0;
       const resPedido = await fetch('/api/pedidos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -167,6 +210,8 @@ export default function CartPage() {
           metodo_pagamento: pagamento,
           endereco_id: modalidade === 'entrega' && principal ? principal.id : null,
           horario_retirada: modalidade === 'retirada' ? horario : null,
+          valor_frete: valorFrete,
+          cupom_codigo: cupomInfo?.codigo ?? undefined,
           itens: items.map((item) => ({
             produto_id: item.product_id,
             nome_produto: item.marca,
@@ -525,9 +570,56 @@ export default function CartPage() {
                 {/* Summary */}
                 <div className="bg-surface border border-[#3d3d4d] rounded-2xl p-4 flex flex-col gap-3">
                   <h2 className="text-sm font-semibold text-foreground">Resumo do pedido</h2>
-                  <div className="flex items-center justify-between">
-                    <span className="text-foreground font-semibold">Total</span>
-                    <span className="text-primary font-bold text-lg">{formatPrice(totalPrice)}</span>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted">Subtotal</span>
+                    <span className="text-foreground font-semibold">{formatPrice(totalPrice)}</span>
+                  </div>
+                  {modalidade === 'entrega' && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted">
+                        {loadingFrete ? 'Calculando frete...' : freteInfo ? freteInfo.produto : 'Frete'}
+                      </span>
+                      <span className="text-foreground font-semibold">
+                        {loadingFrete ? '...' : freteInfo ? formatPrice(freteInfo.frete) : 'Grátis'}
+                      </span>
+                    </div>
+                  )}
+                  {/* Cupom */}
+                  {cupomInfo ? (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-green-400 flex items-center gap-1">
+                        Desconto
+                        <button onClick={() => { setCupom(null); setCupomInput(''); }} className="text-muted hover:text-foreground text-xs ml-1">✕</button>
+                      </span>
+                      <span className="text-green-400 font-semibold">-{formatPrice(cupomInfo.valor)}</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={cupomInput}
+                          onChange={(e) => { setCupomInput(e.target.value.toUpperCase()); setCupomError(''); }}
+                          onKeyDown={(e) => e.key === 'Enter' && handleAplicarCupom()}
+                          placeholder="Código do cupom"
+                          className="flex-1 bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:outline-none focus:border-primary uppercase"
+                        />
+                        <button
+                          onClick={handleAplicarCupom}
+                          disabled={loadingCupom || !cupomInput.trim()}
+                          className="px-4 py-2 rounded-xl bg-primary text-white text-sm font-semibold disabled:opacity-40 hover:bg-secondary transition-colors"
+                        >
+                          {loadingCupom ? '...' : 'Aplicar'}
+                        </button>
+                      </div>
+                      {cupomError && <p className="text-xs text-red-400">{cupomError}</p>}
+                    </div>
+                  )}
+                  <div className="border-t border-[#3d3d4d] pt-2 flex items-center justify-between">
+                    <span className="text-foreground font-bold">Total</span>
+                    <span className="text-primary font-bold text-lg">
+                      {formatPrice(Math.max(0, totalPrice + (modalidade === 'entrega' && freteInfo ? freteInfo.frete : 0) - (cupomInfo?.valor ?? 0)))}
+                    </span>
                   </div>
                 </div>
 

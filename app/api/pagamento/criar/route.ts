@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
 
   // Verifica que o pedido pertence ao usuário
   const { rows: [pedido] } = await db.query(
-    `SELECT p.id, p.valor_total, u.nome_completo, u.telefone
+    `SELECT p.id, p.valor_total, p.valor_frete, p.desconto, u.nome_completo, u.telefone
      FROM pedidos p
      JOIN usuarios u ON u.id = p.usuario_id
      WHERE p.id = $1 AND p.usuario_id = $2 AND p.status = 'pendente'`,
@@ -33,6 +33,18 @@ export async function POST(req: NextRequest) {
     quantity: Number(i.quantidade),
     price: Math.round(Number(i.valor_unitario) * 100), // centavos
   }));
+
+  // Adiciona frete como item se houver
+  const valorFrete = Number(pedido.valor_frete ?? 0);
+  if (valorFrete > 0) {
+    itemsIP.push({ description: 'Frete Uber Moto', quantity: 1, price: Math.round(valorFrete * 100) });
+  }
+
+  // Adiciona desconto como item negativo se houver cupom aplicado
+  const desconto = Number(pedido.desconto ?? 0);
+  if (desconto > 0) {
+    itemsIP.push({ description: 'Desconto cupom', quantity: 1, price: -Math.round(desconto * 100) });
+  }
 
   try {
     const { url } = await criarLinkPagamento({
