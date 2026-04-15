@@ -41,7 +41,7 @@ function PedidoConfirmadoContent() {
     }
 
     async function check() {
-      const res = await fetch(`/api/pagamento/status?pedido_id=${pedidoId}`);
+      const res = await fetch(`/api/pagamento/status?order_nsu=${pedidoId}`);
       if (!res.ok) return;
       const data = await res.json();
 

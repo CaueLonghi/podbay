@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Usuário ou senha incorretos' }, { status: 401 });
   }
 
-  const response = NextResponse.json({ ok: true, user });
+  const response = NextResponse.json({ ok: true, user: { id: user.id, username: user.username } });
 
   // Cookie httpOnly — não acessível via JS, protegido contra XSS
   response.cookies.set(SESSION_COOKIE, user.id, {

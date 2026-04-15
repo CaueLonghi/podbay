@@ -9,7 +9,7 @@ export interface ItemIP {
 }
 
 export interface CriarLinkParams {
-  pedidoId: number;
+  pedidoId: number | string;
   itens: ItemIP[];
   nomeCliente?: string;
   telefoneCliente?: string;

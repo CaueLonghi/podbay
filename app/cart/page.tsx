@@ -2,7 +2,7 @@
 
 import { useState, useEffect, FormEvent } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, ShoppingCart, MapPin, Plus, ChevronRight, Truck, Store, Clock, Banknote, QrCode } from 'lucide-react';
+import { ArrowLeft, ShoppingCart, MapPin, Plus, ChevronRight, Truck, Store, Clock } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
 import { useToast } from '@/context/ToastContext';
 import { useAuth } from '@/context/AuthContext';
@@ -13,12 +13,6 @@ import { formatPrice, maskCep, ESTADOS } from '@/lib/utils';
 const WA_NUMBER = '5511992161095';
 
 type Modalidade = 'entrega' | 'retirada';
-type MetodoPagamento = 'dinheiro' | 'pix';
-
-const METODOS: { key: MetodoPagamento; label: string; desc: string; icon: React.ReactNode }[] = [
-  { key: 'pix',      label: 'PIX',      desc: 'Pagamento instantâneo',   icon: <QrCode size={20} /> },
-  { key: 'dinheiro', label: 'Dinheiro', desc: 'Pague na retirada', icon: <Banknote size={20} /> },
-];
 
 interface Endereco {
   id: number;
@@ -55,7 +49,6 @@ export default function CartPage() {
   const [observacao, setObservacao] = useState('');
   const [modalidade, setModalidade] = useState<Modalidade | null>(null);
   const [horario, setHorario] = useState<string>('');
-  const [pagamento, setPagamento] = useState<MetodoPagamento | null>(null);
 
   const [enderecos, setEnderecos] = useState<Endereco[]>([]);
   const [loadingAddr, setLoadingAddr] = useState(true);
@@ -191,7 +184,7 @@ export default function CartPage() {
   }
 
   function canFinish() {
-    return !pedidoPendente && !!modalidade && !!pagamento &&
+    return !pedidoPendente && !!modalidade &&
       (modalidade === 'entrega' ? !!principal : !!horario);
   }
 
@@ -200,34 +193,32 @@ export default function CartPage() {
     setFinishing(true);
 
     try {
-      // 1. Cria o pedido no banco
       const valorFrete = modalidade === 'entrega' && freteInfo ? freteInfo.frete : 0;
-      const resPedido = await fetch('/api/pedidos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          modalidade,
-          metodo_pagamento: pagamento,
-          endereco_id: modalidade === 'entrega' && principal ? principal.id : null,
-          horario_retirada: modalidade === 'retirada' ? horario : null,
-          valor_frete: valorFrete,
-          cupom_codigo: cupomInfo?.codigo ?? undefined,
-          itens: items.map((item) => ({
-            produto_id: item.product_id,
-            nome_produto: item.marca,
-            sabor: item.sabor,
-            tamanho: item.tamanho,
-            valor_unitario: item.price,
-            quantidade: item.quantity,
-          })),
-        }),
-      });
+      const itensPayload = items.map((item) => ({
+        produto_id: item.product_id,
+        nome_produto: item.marca,
+        sabor: item.sabor,
+        tamanho: item.tamanho,
+        valor_unitario: item.price,
+        quantidade: item.quantity,
+      }));
 
-      if (!resPedido.ok) throw new Error('pedido_error');
-      const { pedido_id } = await resPedido.json();
+      // Retirada → dinheiro, cria pedido + redireciona para WhatsApp
+      if (modalidade === 'retirada') {
+        const resPedido = await fetch('/api/pedidos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            modalidade,
+            metodo_pagamento: 'dinheiro',
+            endereco_id: null,
+            horario_retirada: horario,
+            valor_frete: 0,
+            itens: itensPayload,
+          }),
+        });
+        if (!resPedido.ok) throw new Error('pedido_error');
 
-      // 2a. Dinheiro (retirada) → redireciona para WhatsApp
-      if (pagamento === 'dinheiro') {
         const lista = items.map((item, i) => {
           const qty = item.quantity > 1 ? ` x${item.quantity}` : '';
           const subtotal = item.quantity > 1 ? ` (subtotal: ${formatPrice(item.price * item.quantity)})` : '';
@@ -251,14 +242,30 @@ export default function CartPage() {
         return;
       }
 
-      // 2b. PIX / Cartão → gera link InfinitePay
-      const resPag = await fetch('/api/pagamento/criar', {
+      // PIX → cria pedido + link InfinitePay em uma única chamada
+      const resPag = await fetch('/api/pagamento/iniciar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pedido_id }),
+        body: JSON.stringify({
+          modalidade,
+          endereco_id: principal ? principal.id : null,
+          horario_retirada: null,
+          valor_frete: valorFrete,
+          cupom_codigo: cupomInfo?.codigo ?? undefined,
+          itens: itensPayload,
+        }),
       });
 
-      if (!resPag.ok) throw new Error('pagamento_error');
+      if (!resPag.ok) {
+        const errData = await resPag.json().catch(() => ({}));
+        if (resPag.status === 409 && cupomInfo) {
+          setCupom(null);
+          setCupomInput('');
+          setCupomError('Cupom não disponível. Ele foi removido do seu carrinho.');
+          return;
+        }
+        throw new Error(errData.error ?? 'pagamento_error');
+      }
       const { url } = await resPag.json();
 
       window.location.href = url;
@@ -412,7 +419,7 @@ export default function CartPage() {
                   <h2 className="text-sm font-semibold text-foreground">Forma de recebimento</h2>
                   <div className="grid grid-cols-2 gap-2">
                     <button
-                      onClick={() => { setModalidade('entrega'); if (pagamento === 'dinheiro') setPagamento(null); }}
+                      onClick={() => setModalidade('entrega')}
                       className={`flex flex-col items-center gap-2 rounded-xl py-4 border transition-all ${
                         modalidade === 'entrega'
                           ? 'border-primary bg-primary/10 text-primary'
@@ -436,27 +443,15 @@ export default function CartPage() {
                   </div>
                 </div>
 
-                {/* Método de pagamento */}
-                {modalidade && <div className="bg-surface border border-[#3d3d4d] rounded-2xl p-4 flex flex-col gap-3">
-                  <h2 className="text-sm font-semibold text-foreground">Forma de pagamento</h2>
-                  <div className="grid grid-cols-2 gap-2">
-                    {METODOS.filter(({ key }) => !(modalidade === 'entrega' && key === 'dinheiro')).map(({ key, label, desc, icon }) => (
-                      <button
-                        key={key}
-                        onClick={() => setPagamento(key)}
-                        className={`flex flex-col items-center gap-2 rounded-xl py-4 px-3 border transition-all ${
-                          pagamento === key
-                            ? 'border-primary bg-primary/10 text-primary'
-                            : 'border-[#3d3d4d] text-muted hover:border-primary/50'
-                        }`}
-                      >
-                        {icon}
-                        <span className="text-sm font-semibold">{label}</span>
-                        <span className="text-[10px] text-center leading-tight opacity-70">{desc}</span>
-                      </button>
-                    ))}
+                {/* Método de pagamento: informativo */}
+                {modalidade && (
+                  <div className="bg-surface border border-[#3d3d4d] rounded-2xl px-4 py-3 flex items-center gap-3 text-sm text-muted">
+                    {modalidade === 'entrega'
+                      ? <><span className="text-base">💳</span> Pagamento via PIX ou cartão na próxima etapa</>
+                      : <><span className="text-base">💵</span> Pagamento em dinheiro na retirada</>
+                    }
                   </div>
-                </div>}
+                )}
 
                 {/* Entrega: endereço */}
                 {modalidade === 'entrega' && (
@@ -655,8 +650,6 @@ export default function CartPage() {
                     ? 'Pedido pendente em aberto'
                     : !modalidade
                     ? 'Selecione a forma de recebimento'
-                    : !pagamento
-                    ? 'Selecione a forma de pagamento'
                     : modalidade === 'entrega' && !principal
                     ? 'Cadastre um endereco para continuar'
                     : modalidade === 'retirada' && !horario

@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
 
   const userId = String(newUser.id);
 
-  const response = NextResponse.json({ ok: true, user: { id: userId, username, role: 'user' } });
+  const response = NextResponse.json({ ok: true, user: { id: userId, username } });
 
   response.cookies.set(SESSION_COOKIE, userId, {
     httpOnly: true,

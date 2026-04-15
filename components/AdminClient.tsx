@@ -31,7 +31,7 @@ interface ItemPedido {
 
 interface Pedido {
   id: number;
-  status: 'pendente' | 'pago' | 'enviado' | 'entregue' | 'cancelado';
+  status: 'pendente' | 'pago' | 'pagamento_recusado' | 'enviado' | 'entregue' | 'cancelado';
   modalidade: 'entrega' | 'retirada';
   horario_retirada: string | null;
   metodo_pagamento: 'pix' | 'cartao_credito' | 'boleto' | null;
@@ -60,29 +60,34 @@ interface Props {
 }
 
 type Tab = 'vendas' | 'estoque' | 'faturamento' | 'investimentos' | 'promocoes';
-type StatusPedido = 'pendente' | 'pago' | 'enviado' | 'entregue' | 'cancelado';
+type StatusPedido = 'pendente' | 'pago' | 'pagamento_recusado' | 'enviado' | 'entregue' | 'cancelado';
 type ModalidadeFiltro = 'all' | 'entrega' | 'retirada';
 
 const STATUS_LABELS: Record<StatusPedido, string> = {
-  pendente:  'Pendente',
-  pago:      'Pago',
-  enviado:   'Enviado',
-  entregue:  'Entregue',
-  cancelado: 'Cancelado',
+  pendente:           'Pendente',
+  pago:               'Pago',
+  pagamento_recusado: 'Recusado',
+  enviado:            'Enviado',
+  entregue:           'Entregue',
+  cancelado:          'Cancelado',
 };
 
 const STATUS_COLORS: Record<StatusPedido, string> = {
-  pendente:  'text-yellow-400 bg-yellow-400/10 border-yellow-400/30',
-  pago:      'text-blue-400 bg-blue-400/10 border-blue-400/30',
-  enviado:   'text-purple-400 bg-purple-400/10 border-purple-400/30',
-  entregue:  'text-green-400 bg-green-400/10 border-green-400/30',
-  cancelado: 'text-red-400 bg-red-400/10 border-red-400/30',
+  pendente:           'text-yellow-400 bg-yellow-400/10 border-yellow-400/30',
+  pago:               'text-blue-400 bg-blue-400/10 border-blue-400/30',
+  pagamento_recusado: 'text-red-400 bg-red-400/10 border-red-400/30',
+  enviado:            'text-purple-400 bg-purple-400/10 border-purple-400/30',
+  entregue:           'text-green-400 bg-green-400/10 border-green-400/30',
+  cancelado:          'text-red-400 bg-red-400/10 border-red-400/30',
 };
 
 const METODO_LABELS: Record<string, string> = {
-  pix: 'PIX',
+  pix:          'PIX',
+  credit_card:  'Cartão',
+  debit_card:   'Débito',
   cartao_credito: 'Cartão',
-  boleto: 'Boleto',
+  boleto:       'Boleto',
+  dinheiro:     'Dinheiro',
 };
 
 const STATUS_SEQUENCE: StatusPedido[] = ['pendente', 'pago', 'enviado', 'entregue', 'cancelado'];
@@ -707,7 +712,7 @@ export default function AdminClient({ produtos: initial }: Props) {
   }, [pedidos, modalidadeFiltro]);
 
   const pedidosPorStatus = useMemo(() => {
-    const map: Record<StatusPedido, Pedido[]> = { pendente: [], pago: [], enviado: [], entregue: [], cancelado: [] };
+    const map: Record<StatusPedido, Pedido[]> = { pendente: [], pago: [], pagamento_recusado: [], enviado: [], entregue: [], cancelado: [] };
     for (const p of pedidosFiltradosMod) map[p.status].push(p);
     return map;
   }, [pedidosFiltradosMod]);
