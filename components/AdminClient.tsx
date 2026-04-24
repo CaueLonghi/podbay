@@ -82,6 +82,15 @@ const STATUS_COLORS: Record<StatusPedido, string> = {
   cancelado:          'text-red-400 bg-red-400/10 border-red-400/30',
 };
 
+const STATUS_CARD_BG: Record<StatusPedido, string> = {
+  pendente:           'bg-yellow-400/5  border-yellow-400/25',
+  pago:               'bg-blue-400/5   border-blue-400/25',
+  pagamento_recusado: 'bg-red-400/5    border-red-500/25',
+  enviado:            'bg-purple-400/5  border-purple-400/25',
+  entregue:           'bg-green-400/5   border-green-400/25',
+  cancelado:          'bg-red-400/5    border-red-500/25',
+};
+
 const METODO_LABELS: Record<string, string> = {
   pix:          'PIX',
   credit_card:  'Cartão',
@@ -754,7 +763,7 @@ export default function AdminClient({ produtos: initial }: Props) {
   // ── Vendas ───────────────────────────────────────────────────
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [loadingPedidos, setLoadingPedidos] = useState(false);
-  const [statusTab, setStatusTab] = useState<StatusPedido>('pendente');
+  const [statusTab, setStatusTab] = useState<StatusPedido | 'all'>('pendente');
   const [modalidadeFiltro, setModalidadeFiltro] = useState<ModalidadeFiltro>('all');
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
@@ -782,9 +791,11 @@ export default function AdminClient({ produtos: initial }: Props) {
 
   // Lista final: modalidade + status, do mais antigo para o mais novo
   const pedidosAtivos = useMemo(() => {
-    const lista = pedidosPorStatus[statusTab];
+    const lista = statusTab === 'all'
+      ? pedidosFiltradosMod
+      : pedidosPorStatus[statusTab];
     return [...lista].sort((a, b) => new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime());
-  }, [pedidosPorStatus, statusTab]);
+  }, [pedidosFiltradosMod, pedidosPorStatus, statusTab]);
 
   async function updateStatus(id: number, novoStatus: StatusPedido) {
     setUpdatingId(id);
@@ -1102,7 +1113,7 @@ export default function AdminClient({ produtos: initial }: Props) {
       {/* ── Body: sidebar (desktop) + content ── */}
       <div className="flex flex-1">
         {/* Sidebar — desktop only */}
-        <aside className="hidden md:flex sticky top-14 self-start h-[calc(100vh-56px)] w-56 shrink-0 border-r border-[#3d3d4d] bg-surface flex-col">
+        <aside className="hidden md:flex sticky top-14 self-start h-[calc(100vh-56px)] w-52 shrink-0 border-r border-[#3d3d4d] bg-surface flex-col">
           <div className="px-5 py-5 border-b border-[#3d3d4d]">
             <Link href="/" className="flex items-center gap-2 text-muted hover:text-primary text-xs font-semibold mb-4">
               <ArrowLeft size={14} /> Voltar à loja
@@ -1128,6 +1139,75 @@ export default function AdminClient({ produtos: initial }: Props) {
           </nav>
         </aside>
 
+        {/* Filter sidebar — desktop, vendas tab only */}
+        {tab === 'vendas' && (
+          <aside className="hidden md:flex sticky top-14 self-start h-[calc(100vh-56px)] w-44 shrink-0 border-r border-[#3d3d4d] bg-surface/60 flex-col overflow-y-auto">
+            {/* Modalidade */}
+            <div className="px-3 pt-4 pb-2">
+              <p className="text-[10px] font-bold text-muted uppercase tracking-widest mb-2 px-1">Modalidade</p>
+              {([
+                { key: 'all',      label: 'Todos',     count: pedidos.filter((p) => p.status !== 'cancelado').length },
+                { key: 'entrega',  label: 'Entregas',  count: pedidos.filter((p) => p.modalidade === 'entrega'  && p.status !== 'cancelado').length },
+                { key: 'retirada', label: 'Retiradas', count: pedidos.filter((p) => p.modalidade === 'retirada' && p.status !== 'cancelado').length },
+              ] as const).map(({ key, label, count }) => (
+                <button
+                  key={key}
+                  onClick={() => setModalidadeFiltro(key)}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold mb-0.5 transition-all ${
+                    modalidadeFiltro === key
+                      ? 'bg-primary/15 text-primary'
+                      : 'text-muted hover:bg-primary/5 hover:text-foreground'
+                  }`}
+                >
+                  {label}
+                  {count > 0 && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#2a2a3d] text-muted">{count}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            <div className="h-px bg-[#3d3d4d] mx-3" />
+
+            {/* Status */}
+            <div className="px-3 pt-3 pb-4">
+              <p className="text-[10px] font-bold text-muted uppercase tracking-widest mb-2 px-1">Status</p>
+              {/* Todos */}
+              <button
+                onClick={() => setStatusTab('all')}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold mb-0.5 transition-all ${
+                  statusTab === 'all'
+                    ? 'bg-primary/15 text-primary'
+                    : 'text-muted hover:bg-primary/5 hover:text-foreground'
+                }`}
+              >
+                Todos
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#2a2a3d] text-muted">{pedidosFiltradosMod.length}</span>
+              </button>
+              {STATUS_SEQUENCE.map((s) => {
+                const count = pedidosPorStatus[s].length;
+                const isActive = statusTab === s;
+                return (
+                  <button
+                    key={s}
+                    onClick={() => setStatusTab(s)}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold mb-0.5 transition-all ${
+                      isActive
+                        ? STATUS_COLORS[s] + ' border border-current/30'
+                        : 'text-muted hover:bg-primary/5 hover:text-foreground'
+                    }`}
+                  >
+                    {STATUS_LABELS[s]}
+                    {count > 0 && (
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isActive ? 'bg-current/20' : 'bg-[#2a2a3d] text-muted'}`}>{count}</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </aside>
+        )}
+
         {/* Content — shared mobile + desktop */}
         <main className="flex-1 min-w-0 px-4 md:px-8 pt-4 md:pt-6 pb-10">
 
@@ -1135,8 +1215,8 @@ export default function AdminClient({ produtos: initial }: Props) {
         {tab === 'vendas' && (
           <div className="flex flex-col gap-4">
 
-            {/* Filtros: modalidade + status (independentes) */}
-            <div className="flex flex-col gap-1.5">
+            {/* Filtros: mobile only — desktop usa a sidebar lateral */}
+            <div className="md:hidden flex flex-col gap-1.5">
               {/* Linha 1: Todas / Entregas / Retiradas */}
               <div className="flex gap-1.5">
                 {([
@@ -1164,8 +1244,19 @@ export default function AdminClient({ produtos: initial }: Props) {
                 })}
               </div>
 
-              {/* Linha 2: Status — contagens refletem o filtro de modalidade acima */}
+              {/* Linha 2: Status */}
               <div className="flex overflow-x-auto no-scrollbar gap-1.5 pb-0.5">
+                <button
+                  onClick={() => setStatusTab('all')}
+                  className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all ${
+                    statusTab === 'all'
+                      ? 'bg-primary/10 text-primary border-primary'
+                      : 'bg-surface text-muted border-[#3d3d4d] hover:border-primary/40'
+                  }`}
+                >
+                  Todos
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#2a2a3d]">{pedidosFiltradosMod.length}</span>
+                </button>
                 {STATUS_SEQUENCE.map((s) => {
                   const count = pedidosPorStatus[s].length;
                   const isActive = statusTab === s;
@@ -1181,11 +1272,7 @@ export default function AdminClient({ produtos: initial }: Props) {
                     >
                       {STATUS_LABELS[s]}
                       {count > 0 && (
-                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                          isActive ? 'bg-current/20' : 'bg-[#2a2a3d]'
-                        }`}>
-                          {count}
-                        </span>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isActive ? 'bg-current/20' : 'bg-[#2a2a3d]'}`}>{count}</span>
                       )}
                     </button>
                   );
@@ -1219,7 +1306,7 @@ export default function AdminClient({ produtos: initial }: Props) {
                 : null;
 
               return (
-                <div key={pedido.id} className="bg-surface border border-[#3d3d4d] rounded-2xl overflow-hidden">
+                <div key={pedido.id} className={`border rounded-2xl overflow-hidden ${STATUS_CARD_BG[pedido.status]}`}>
 
                   {/* ── Cabeçalho: #ID · nome · hora · data ── */}
                   <div className="px-4 pt-3 pb-2 flex items-start justify-between gap-3">
