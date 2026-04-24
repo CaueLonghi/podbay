@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2, Check, TrendingDown, TrendingUp, DollarSign } from 'lucide-react';
+import { Plus, Trash2, Check, TrendingDown, TrendingUp, DollarSign, Calculator, Pencil } from 'lucide-react';
 import { formatPrice } from '@/lib/utils';
 
 // ── Types ────────────────────────────────────────────────────
@@ -558,25 +558,359 @@ function AgiotagemSection() {
   );
 }
 
+// ── SUB-TAB: Estimativa de Lucro ────────────────────────────
+function EstimativaSection() {
+  interface Grupo { key: string; marca: string; tamanho: string; valor: number; custo: number; }
+
+  const now = new Date();
+  const [grupos, setGrupos] = useState<Grupo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [qtds, setQtds] = useState<Record<string, string>>({});
+  const [mes, setMes] = useState(now.getMonth() + 1);
+  const [ano, setAno] = useState(now.getFullYear());
+  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'ok' | 'err'>('idle');
+
+  useEffect(() => {
+    fetch('/api/admin/catalogo')
+      .then((r) => r.json())
+      .then((d) => {
+        const map = new Map<string, Grupo>();
+        for (const p of (d.produtos ?? [])) {
+          const key = `${p.marca}|||${p.tamanho}`;
+          if (!map.has(key)) {
+            map.set(key, { key, marca: p.marca, tamanho: p.tamanho, valor: Number(p.valor), custo: Number(p.custo ?? 0) });
+          }
+        }
+        const sorted = Array.from(map.values()).sort((a, b) =>
+          a.marca.localeCompare(b.marca, 'pt-BR') || a.tamanho.localeCompare(b.tamanho, 'pt-BR')
+        );
+        setGrupos(sorted);
+        const init: Record<string, string> = {};
+        sorted.forEach((g) => { init[g.key] = '0'; });
+        setQtds(init);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const totais = useMemo(() => {
+    let investimento = 0, receita = 0;
+    for (const g of grupos) {
+      const qty = Number(qtds[g.key] ?? 0);
+      investimento += g.custo * qty;
+      receita += g.valor * qty;
+    }
+    return { investimento, receita, lucro: receita - investimento };
+  }, [grupos, qtds]);
+
+  async function handleSalvar() {
+    setSaving(true);
+    setSaveStatus('idle');
+    try {
+      const res = await fetch('/api/admin/estimativas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mes, ano, ...totais }),
+      });
+      setSaveStatus(res.ok ? 'ok' : 'err');
+    } catch {
+      setSaveStatus('err');
+    } finally {
+      setSaving(false);
+      setTimeout(() => setSaveStatus('idle'), 3000);
+    }
+  }
+
+  const [historico, setHistorico] = useState<{ id: number; mes: number; ano: number; investimento: number; receita: number; lucro: number }[]>([]);
+
+  useEffect(() => {
+    fetch('/api/admin/estimativas')
+      .then((r) => r.json())
+      .then((d) => setHistorico(d.estimativas ?? []));
+  }, [saving]); // recarrega após cada save
+
+  if (loading) return <p className="text-xs text-muted text-center py-8">Carregando...</p>;
+
+  return (
+    <div className="flex gap-4 items-start">
+      {/* ── ESQUERDA: produtos + salvar ── */}
+      <div className="flex-1 min-w-0 flex flex-col gap-4">
+      {/* Totais */}
+      <div className="grid grid-cols-3 gap-2">
+        <div className="bg-surface border border-[#3d3d4d] rounded-2xl p-3 flex flex-col gap-0.5">
+          <p className="text-[10px] text-muted uppercase tracking-wider">Investimento</p>
+          <p className="text-base font-bold text-foreground">{formatPrice(totais.investimento)}</p>
+        </div>
+        <div className="bg-surface border border-blue-500/30 rounded-2xl p-3 flex flex-col gap-0.5">
+          <p className="text-[10px] text-muted uppercase tracking-wider">Receita</p>
+          <p className="text-base font-bold text-blue-400">{formatPrice(totais.receita)}</p>
+        </div>
+        <div className={`bg-surface rounded-2xl p-3 flex flex-col gap-0.5 border ${totais.lucro >= 0 ? 'border-green-500/30' : 'border-red-500/30'}`}>
+          <p className="text-[10px] text-muted uppercase tracking-wider">Lucro</p>
+          <p className={`text-base font-bold ${totais.lucro >= 0 ? 'text-green-400' : 'text-red-400'}`}>{formatPrice(totais.lucro)}</p>
+        </div>
+      </div>
+
+      {/* Tabela */}
+      <div className="bg-surface border border-[#3d3d4d] rounded-2xl overflow-hidden">
+        <div className="grid grid-cols-[1fr_60px_72px_72px_72px] gap-2 px-4 py-2 bg-[#1a1a2e] border-b border-[#3d3d4d]">
+          <p className="text-[10px] font-bold text-muted uppercase tracking-wider">Produto</p>
+          <p className="text-[10px] font-bold text-muted uppercase tracking-wider text-right">Qtd</p>
+          <p className="text-[10px] font-bold text-muted uppercase tracking-wider text-right">Custo</p>
+          <p className="text-[10px] font-bold text-muted uppercase tracking-wider text-right">Venda</p>
+          <p className="text-[10px] font-bold text-muted uppercase tracking-wider text-right">Lucro</p>
+        </div>
+
+        <div className="divide-y divide-[#2a2a3d]">
+          {grupos.map((g) => {
+            const qty = Number(qtds[g.key] ?? 0);
+            const lucroGrupo = (g.valor - g.custo) * qty;
+            return (
+              <div key={g.key} className="grid grid-cols-[1fr_60px_72px_72px_72px] gap-2 items-center px-4 py-2.5">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-foreground truncate">{g.marca}</p>
+                  <p className="text-[10px] text-muted">{g.tamanho}</p>
+                </div>
+                <input
+                  type="number" min="0"
+                  value={qtds[g.key] ?? '0'}
+                  onChange={(e) => setQtds((prev) => ({ ...prev, [g.key]: e.target.value }))}
+                  className="w-full bg-background border border-[#3d3d4d] rounded-lg px-2 py-1 text-xs text-foreground text-right focus:border-primary focus:outline-none"
+                />
+                <p className="text-xs text-muted text-right">{formatPrice(g.custo)}</p>
+                <p className="text-xs text-foreground text-right">{formatPrice(g.valor)}</p>
+                <p className={`text-xs font-semibold text-right ${lucroGrupo > 0 ? 'text-green-400' : lucroGrupo < 0 ? 'text-red-400' : 'text-muted'}`}>
+                  {qty > 0 ? formatPrice(lucroGrupo) : '—'}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="grid grid-cols-[1fr_60px_72px_72px_72px] gap-2 items-center px-4 py-3 bg-[#1a1a2e] border-t border-[#3d3d4d]">
+          <p className="text-xs font-bold text-foreground">Total</p>
+          <div />
+          <p className="text-xs font-bold text-muted text-right">{formatPrice(totais.investimento)}</p>
+          <p className="text-xs font-bold text-blue-400 text-right">{formatPrice(totais.receita)}</p>
+          <p className={`text-xs font-bold text-right ${totais.lucro >= 0 ? 'text-green-400' : 'text-red-400'}`}>{formatPrice(totais.lucro)}</p>
+        </div>
+      </div>
+
+      {/* Selecionar mês/ano + salvar */}
+      <div className="bg-surface border border-[#3d3d4d] rounded-2xl p-4 flex flex-col gap-3">
+        <p className="text-xs font-bold text-muted uppercase tracking-wider">Salvar estimativa</p>
+        <div className="flex gap-2 items-center">
+          <select
+            value={mes}
+            onChange={(e) => setMes(Number(e.target.value))}
+            className="flex-1 bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+          >
+            {MESES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+          </select>
+          <input
+            type="number" min="2024" max="2099"
+            value={ano}
+            onChange={(e) => setAno(Number(e.target.value))}
+            className="w-24 bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+          />
+          <button
+            onClick={handleSalvar}
+            disabled={saving}
+            className="flex-1 bg-primary text-white rounded-xl py-2 text-sm font-bold disabled:opacity-50 hover:bg-secondary transition-colors active:scale-95"
+          >
+            {saving ? 'Salvando...' : 'Salvar'}
+          </button>
+        </div>
+        {saveStatus === 'ok' && <p className="text-xs text-green-400 font-semibold">Estimativa salva com sucesso!</p>}
+        {saveStatus === 'err' && <p className="text-xs text-red-400 font-semibold">Erro ao salvar. Tente novamente.</p>}
+      </div>
+      </div>{/* fim coluna esquerda */}
+
+      {/* ── DIREITA: histórico ── */}
+      <div className="w-64 shrink-0 flex flex-col gap-3">
+        <p className="text-xs font-bold text-muted uppercase tracking-wider">Histórico</p>
+
+        {historico.length === 0 ? (
+          <p className="text-xs text-muted italic">Nenhuma estimativa salva</p>
+        ) : (
+          historico.map((e) => (
+            <HistoricoCard
+              key={e.id}
+              entry={e}
+              onDeleted={(id) => setHistorico((prev) => prev.filter((x) => x.id !== id))}
+              onUpdated={(updated) => setHistorico((prev) => prev.map((x) => x.id === updated.id ? updated : x))}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function HistoricoCard({
+  entry,
+  onDeleted,
+  onUpdated,
+}: {
+  entry: { id: number; mes: number; ano: number; investimento: number; receita: number; lucro: number };
+  onDeleted: (id: number) => void;
+  onUpdated: (e: typeof entry) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    mes: entry.mes,
+    ano: entry.ano,
+    investimento: String(entry.investimento),
+    receita: String(entry.receita),
+    lucro: String(entry.lucro),
+  });
+
+  async function handleDelete() {
+    setDeleting(true);
+    await fetch(`/api/admin/estimativas/${entry.id}`, { method: 'DELETE' });
+    onDeleted(entry.id);
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    const body = {
+      mes: Number(form.mes),
+      ano: Number(form.ano),
+      investimento: Number(form.investimento),
+      receita: Number(form.receita),
+      lucro: Number(form.lucro),
+    };
+    const res = await fetch(`/api/admin/estimativas/${entry.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) {
+      onUpdated({ id: entry.id, ...body });
+      setEditing(false);
+    }
+    setSaving(false);
+  }
+
+  if (editing) {
+    return (
+      <div className="bg-surface border border-primary/40 rounded-2xl p-3 flex flex-col gap-2">
+        <p className="text-xs font-bold text-primary">Editar</p>
+        <div className="flex gap-1.5">
+          <select
+            value={form.mes}
+            onChange={(e) => setForm((f) => ({ ...f, mes: Number(e.target.value) }))}
+            className="flex-1 bg-background border border-[#3d3d4d] rounded-lg px-2 py-1 text-xs text-foreground focus:border-primary focus:outline-none"
+          >
+            {MESES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+          </select>
+          <input
+            type="number" min="2024" max="2099"
+            value={form.ano}
+            onChange={(e) => setForm((f) => ({ ...f, ano: Number(e.target.value) }))}
+            className="w-16 bg-background border border-[#3d3d4d] rounded-lg px-2 py-1 text-xs text-foreground focus:border-primary focus:outline-none"
+          />
+        </div>
+        {(['investimento', 'receita', 'lucro'] as const).map((field) => (
+          <div key={field} className="flex items-center gap-1.5">
+            <span className="text-[10px] text-muted w-20 capitalize">{field}</span>
+            <input
+              type="number" step="0.01"
+              value={form[field]}
+              onChange={(e) => setForm((f) => ({ ...f, [field]: e.target.value }))}
+              className="flex-1 bg-background border border-[#3d3d4d] rounded-lg px-2 py-1 text-xs text-foreground text-right focus:border-primary focus:outline-none"
+            />
+          </div>
+        ))}
+        <div className="flex gap-1.5 mt-1">
+          <button
+            onClick={() => setEditing(false)}
+            className="flex-1 py-1.5 rounded-lg border border-[#3d3d4d] text-xs text-muted hover:text-foreground"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 py-1.5 rounded-lg bg-primary text-white text-xs font-bold disabled:opacity-50"
+          >
+            {saving ? '...' : 'Salvar'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-surface border border-[#3d3d4d] rounded-2xl p-3 flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-bold text-foreground">{MESES[entry.mes - 1]} {entry.ano}</p>
+        <div className="flex gap-1">
+          <button
+            onClick={() => setEditing(true)}
+            className="w-6 h-6 flex items-center justify-center text-muted hover:text-primary transition-colors"
+          >
+            <Pencil size={12} />
+          </button>
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="w-6 h-6 flex items-center justify-center text-muted hover:text-red-400 transition-colors disabled:opacity-40"
+          >
+            <Trash2 size={12} />
+          </button>
+        </div>
+      </div>
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-muted">Investimento</span>
+          <span className="text-foreground font-semibold">{formatPrice(Number(entry.investimento))}</span>
+        </div>
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-muted">Receita</span>
+          <span className="text-blue-400 font-semibold">{formatPrice(Number(entry.receita))}</span>
+        </div>
+        <div className="h-px bg-[#3d3d4d]" />
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-muted">Lucro</span>
+          <span className={`font-bold ${Number(entry.lucro) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            {formatPrice(Number(entry.lucro))}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Export principal ─────────────────────────────────────────
 export default function InvestimentosTab() {
-  const [subTab, setSubTab] = useState<'investimentos' | 'agiotagem'>('investimentos');
+  const [subTab, setSubTab] = useState<'investimentos' | 'agiotagem' | 'estimativa'>('investimentos');
+
+  const SUB_TABS: { key: typeof subTab; label: string }[] = [
+    { key: 'investimentos', label: 'Investimentos & Custos' },
+    { key: 'agiotagem',     label: '💸 Agiotagem' },
+    { key: 'estimativa',    label: '📊 Estimativa' },
+  ];
 
   return (
     <div className="flex flex-col gap-4">
       {/* Sub-tabs */}
-      <div className="flex gap-2">
-        {(['investimentos', 'agiotagem'] as const).map((t) => (
-          <button key={t} onClick={() => setSubTab(t)}
+      <div className="flex gap-2 flex-wrap">
+        {SUB_TABS.map((t) => (
+          <button key={t.key} onClick={() => setSubTab(t.key)}
             className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all ${
-              subTab === t ? 'bg-primary text-white border-primary' : 'bg-surface text-muted border-[#3d3d4d] hover:border-primary/50'
+              subTab === t.key ? 'bg-primary text-white border-primary' : 'bg-surface text-muted border-[#3d3d4d] hover:border-primary/50'
             }`}>
-            {t === 'investimentos' ? 'Investimentos & Custos' : '💸 Agiotagem'}
+            {t.label}
           </button>
         ))}
       </div>
 
-      {subTab === 'investimentos' ? <InvestimentosSection /> : <AgiotagemSection />}
+      {subTab === 'investimentos' && <InvestimentosSection />}
+      {subTab === 'agiotagem'     && <AgiotagemSection />}
+      {subTab === 'estimativa'    && <EstimativaSection />}
     </div>
   );
 }

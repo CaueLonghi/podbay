@@ -2,22 +2,14 @@
 
 import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { Eye, EyeOff, Lock, User, Mail, Phone, CreditCard } from 'lucide-react';
+import { Eye, EyeOff, Lock, User, Mail, Phone } from 'lucide-react';
 import Link from 'next/link';
-import {
-  validarNome,
-  validarEmail,
-  validarTelefone,
-  validarCPF,
-  mascaraCPF,
-  mascaraTelefone,
-} from '@/lib/validacoes';
+import { validarNome, validarEmail, validarTelefone, mascaraTelefone } from '@/lib/validacoes';
 
 interface FieldErrors {
   nome?: string;
   email?: string;
   telefone?: string;
-  cpf?: string;
   senha?: string;
 }
 
@@ -27,7 +19,6 @@ export default function RegisterPage() {
   const [nomeCompleto, setNomeCompleto] = useState('');
   const [email, setEmail]               = useState('');
   const [telefone, setTelefone]         = useState('');
-  const [cpf, setCpf]                   = useState('');
   const [password, setPassword]         = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
@@ -37,10 +28,9 @@ export default function RegisterPage() {
 
   function validateAll(): FieldErrors {
     return {
-      nome:     validarNome(nomeCompleto)     ?? undefined,
-      email:    validarEmail(email)           ?? undefined,
-      telefone: validarTelefone(telefone)     ?? undefined,
-      cpf:      validarCPF(cpf)              ?? undefined,
+      nome:     validarNome(nomeCompleto)  ?? undefined,
+      email:    validarEmail(email)        ?? undefined,
+      telefone: validarTelefone(telefone)  ?? undefined,
       senha:    password.length < 6 ? 'Senha deve ter pelo menos 6 caracteres' : undefined,
     };
   }
@@ -65,7 +55,7 @@ export default function RegisterPage() {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nome_completo: nomeCompleto, email, telefone, cpf, password }),
+        body: JSON.stringify({ nome_completo: nomeCompleto, email, telefone, password }),
       });
 
       const data = await res.json();
@@ -90,7 +80,6 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6" style={{ background: '#0f0f1e' }}>
-      {/* Logo */}
       <div className="mb-8 text-center">
         <div className="w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-4 text-4xl"
           style={{ background: 'linear-gradient(135deg, #a78bfa, #7c3aed)' }}>
@@ -100,7 +89,6 @@ export default function RegisterPage() {
         <p className="text-sm mt-1" style={{ color: '#6b7280' }}>Crie sua conta e comece a vaporar</p>
       </div>
 
-      {/* Card */}
       <div className="w-full max-w-sm rounded-3xl p-6 shadow-xl" style={{ background: '#1f1f2e', border: '1px solid #3d3d4d' }}>
         <h2 className="text-lg font-bold mb-6" style={{ color: '#e5e7eb' }}>Criar conta</h2>
 
@@ -123,26 +111,6 @@ export default function RegisterPage() {
               />
             </div>
             {fieldErrors.nome && <p className="text-xs text-red-400 mt-1 pl-1">{fieldErrors.nome}</p>}
-          </div>
-
-          {/* CPF */}
-          <div>
-            <label className="text-xs font-semibold mb-1 block" style={{ color: '#9ca3af' }}>CPF</label>
-            <div className="relative">
-              <CreditCard size={16} style={iconStyle} />
-              <input
-                type="text"
-                inputMode="numeric"
-                value={cpf}
-                onChange={(e) => { setCpf(mascaraCPF(e.target.value)); setFieldErrors((p) => ({ ...p, cpf: undefined })); }}
-                onBlur={() => blurValidate('cpf')}
-                placeholder="000.000.000-00"
-                autoComplete="off"
-                className={`${inputBase} ${fieldErrors.cpf ? 'focus:border-red-400' : 'focus:border-violet-400'}`}
-                style={inputStyle(fieldErrors.cpf)}
-              />
-            </div>
-            {fieldErrors.cpf && <p className="text-xs text-red-400 mt-1 pl-1">{fieldErrors.cpf}</p>}
           </div>
 
           {/* E-mail */}
@@ -211,7 +179,6 @@ export default function RegisterPage() {
             {fieldErrors.senha && <p className="text-xs text-red-400 mt-1 pl-1">{fieldErrors.senha}</p>}
           </div>
 
-          {/* Erro do servidor */}
           {serverError && (
             <p className="text-xs font-medium rounded-xl px-3 py-2" style={{ background: '#3b1a1a', color: '#f87171' }}>
               {serverError}

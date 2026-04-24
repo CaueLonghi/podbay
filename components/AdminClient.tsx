@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useMemo, useEffect, FormEvent } from 'react';
+import React, { useState, useMemo, useEffect, FormEvent } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Plus, Trash2, PackageSearch, TrendingUp, ShoppingBag, Check, Pencil, X, MapPin, CreditCard, Clock, Truck, Store, Tag } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, PackageSearch, TrendingUp, ShoppingBag, Check, Pencil, X, MapPin, CreditCard, Clock, Truck, Store, Tag, Users, ChevronDown, ChevronUp, Search } from 'lucide-react';
 import { formatPrice } from '@/lib/utils';
 import InvestimentosTab from '@/components/InvestimentosTab';
 
@@ -60,7 +60,7 @@ interface Props {
   produtos: Produto[];
 }
 
-type Tab = 'vendas' | 'estoque' | 'faturamento' | 'investimentos' | 'promocoes';
+type Tab = 'vendas' | 'estoque' | 'faturamento' | 'investimentos' | 'promocoes' | 'usuarios';
 type StatusPedido = 'pendente' | 'pago' | 'pagamento_recusado' | 'enviado' | 'entregue' | 'cancelado';
 type ModalidadeFiltro = 'all' | 'entrega' | 'retirada';
 
@@ -758,7 +758,7 @@ function PromocoesTab() {
 }
 
 export default function AdminClient({ produtos: initial }: Props) {
-  const [tab, setTab] = useState<Tab>('estoque');
+  const [tab, setTab] = useState<Tab>('vendas');
 
   // ── Vendas ───────────────────────────────────────────────────
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
@@ -1072,6 +1072,181 @@ export default function AdminClient({ produtos: initial }: Props) {
     }
   }
 
+  // ── Usuários Tab ─────────────────────────────────────────────
+  function UsuariosTab() {
+    type UsuarioItem = { id: number; username: string; nome_completo: string; email: string; telefone: string | null; is_admin: boolean; created_at: string; };
+    const [usuarios, setUsuarios] = React.useState<UsuarioItem[]>([]);
+    const [loading, setLoading] = React.useState(true);
+    const [search, setSearch] = React.useState('');
+    const [expandedId, setExpandedId] = React.useState<number | null>(null);
+    const [detalhe, setDetalhe] = React.useState<Record<number, {
+      enderecos: { id: number; apelido: string | null; logradouro: string; numero: string; complemento: string | null; bairro: string; cidade: string; estado: string; cep: string; principal: boolean }[];
+      pedidos: { id: number; modalidade: string; status: string; valor_total: number; criado_em: string; itens: { nome_produto: string; sabor: string; tamanho: string; quantidade: number; valor_unitario: number }[] }[];
+    }>>({});
+    const [loadingDetalhe, setLoadingDetalhe] = React.useState<number | null>(null);
+
+    React.useEffect(() => {
+      fetch('/api/admin/usuarios')
+        .then((r) => r.json())
+        .then((d) => setUsuarios(d.usuarios ?? []))
+        .finally(() => setLoading(false));
+    }, []);
+
+    async function toggleExpand(id: number) {
+      if (expandedId === id) { setExpandedId(null); return; }
+      setExpandedId(id);
+      if (detalhe[id]) return;
+      setLoadingDetalhe(id);
+      try {
+        const res = await fetch(`/api/admin/usuarios/${id}`);
+        const d = await res.json();
+        setDetalhe((prev) => ({ ...prev, [id]: d }));
+      } finally {
+        setLoadingDetalhe(null);
+      }
+    }
+
+    const term = search.trim().toLowerCase();
+    const filtered = usuarios.filter((u) =>
+      !term ||
+      u.nome_completo.toLowerCase().includes(term) ||
+      u.username.toLowerCase().includes(term)
+    );
+    const admins  = filtered.filter((u) => u.is_admin);
+    const comuns  = filtered.filter((u) => !u.is_admin).sort((a, b) =>
+      (a.nome_completo || a.username).localeCompare(b.nome_completo || b.username, 'pt-BR')
+    );
+
+    function UserCard({ u }: { u: UsuarioItem }) {
+      const isExpanded = expandedId === u.id;
+      const isAdmin = u.is_admin;
+      const det = detalhe[u.id];
+      return (
+        <div className={`rounded-2xl border overflow-hidden ${isAdmin ? 'border-primary/40 bg-primary/5' : 'border-[#3d3d4d] bg-surface'}`}>
+          <button onClick={() => toggleExpand(u.id)} className="w-full flex items-center justify-between px-4 py-3 text-left">
+            <div className="flex flex-col gap-0.5 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className={`text-sm font-bold truncate ${isAdmin ? 'text-primary' : 'text-foreground'}`}>{u.nome_completo || u.username}</span>
+                {isAdmin && <span className="flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/20 text-primary border border-primary/30">ADMIN</span>}
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+                <span className="text-xs text-muted">{u.email}</span>
+                {u.telefone && <span className="text-xs text-muted">{u.telefone}</span>}
+              </div>
+            </div>
+            <div className="flex-shrink-0 ml-3 text-muted">{isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</div>
+          </button>
+
+          {isExpanded && (
+            <div className="border-t border-[#3d3d4d] px-4 py-3 flex flex-col gap-4">
+              {loadingDetalhe === u.id ? (
+                <div className="flex justify-center py-4"><div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>
+              ) : det ? (
+                <>
+                  <div>
+                    <p className="text-[10px] font-bold text-muted uppercase tracking-widest mb-2">Endereços</p>
+                    {det.enderecos.length === 0 ? <p className="text-xs text-muted italic">Nenhum endereço cadastrado</p> : (
+                      <div className="flex flex-col gap-1.5">
+                        {det.enderecos.map((e) => (
+                          <div key={e.id} className="bg-background rounded-xl px-3 py-2 flex flex-col gap-0.5">
+                            {e.apelido && <span className="text-xs font-bold text-primary">{e.apelido}{e.principal ? ' ★' : ''}</span>}
+                            <p className="text-xs text-foreground">{e.logradouro}, {e.numero}{e.complemento ? ` - ${e.complemento}` : ''}</p>
+                            <p className="text-xs text-muted">{e.bairro}, {e.cidade} - {e.estado} · {e.cep}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-muted uppercase tracking-widest mb-2">Pedidos ({det.pedidos.length})</p>
+                    {det.pedidos.length === 0 ? <p className="text-xs text-muted italic">Nenhum pedido realizado</p> : (
+                      <div className="flex flex-col gap-2">
+                        {det.pedidos.map((p) => {
+                          const dt = new Date(p.criado_em);
+                          const hora = dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                          const data = dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                          return (
+                            <div key={p.id} className={`rounded-xl border px-3 py-2.5 flex flex-col gap-1.5 ${STATUS_CARD_BG[p.status as StatusPedido] ?? 'bg-background border-[#3d3d4d]'}`}>
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-xs font-bold text-foreground">#{p.id} · {data} {hora}</span>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border ${STATUS_COLORS[p.status as StatusPedido] ?? ''}`}>{STATUS_LABELS[p.status as StatusPedido] ?? p.status}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-xs text-muted">
+                                <span>{p.modalidade === 'entrega' ? '🚚 Entrega' : '🏪 Retirada'}</span>
+                                <span>·</span>
+                                <span className="font-semibold text-foreground">{formatPrice(Number(p.valor_total))}</span>
+                              </div>
+                              <div className="flex flex-col gap-0.5">
+                                {p.itens.map((it, idx) => (
+                                  <p key={idx} className="text-xs text-muted">{it.quantidade}× {it.nome_produto} {it.tamanho} · {it.sabor}</p>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : null}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (loading) return (
+      <div className="flex justify-center py-16">
+        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+
+    return (
+      <div className="flex flex-col gap-4">
+        {/* Header + busca */}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-base font-bold text-foreground">Usuários cadastrados</h2>
+            <p className="text-xs text-muted">{usuarios.length} usuário{usuarios.length !== 1 ? 's' : ''} · {admins.length} admin{admins.length !== 1 ? 's' : ''}</p>
+          </div>
+          <div className="relative w-full sm:w-56">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Buscar por nome..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full bg-surface border border-[#3d3d4d] rounded-xl pl-8 pr-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary focus:outline-none"
+            />
+          </div>
+        </div>
+
+        {/* Admins */}
+        {admins.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <p className="text-[10px] font-bold text-primary uppercase tracking-widest">Administradores</p>
+            {admins.map((u) => <UserCard key={u.id} u={u} />)}
+          </div>
+        )}
+
+        {/* Divider */}
+        {admins.length > 0 && comuns.length > 0 && <div className="h-px bg-[#3d3d4d]" />}
+
+        {/* Usuários comuns */}
+        {comuns.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <p className="text-[10px] font-bold text-muted uppercase tracking-widest">Usuários</p>
+            {comuns.map((u) => <UserCard key={u.id} u={u} />)}
+          </div>
+        )}
+
+        {filtered.length === 0 && (
+          <p className="text-sm text-muted text-center py-10">Nenhum usuário encontrado</p>
+        )}
+      </div>
+    );
+  }
+
   // ── Tabs ─────────────────────────────────────────────────────
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
     { key: 'vendas',        label: 'Vendas',        icon: <ShoppingBag size={16} /> },
@@ -1079,6 +1254,7 @@ export default function AdminClient({ produtos: initial }: Props) {
     { key: 'faturamento',   label: 'Faturamento',   icon: <TrendingUp size={16} /> },
     { key: 'investimentos', label: 'Investimentos', icon: <span className="text-sm">💰</span> },
     { key: 'promocoes',     label: 'Promoções',     icon: <Tag size={16} /> },
+    { key: 'usuarios',      label: 'Usuários',      icon: <Users size={16} /> },
   ];
 
   return (
@@ -1866,6 +2042,9 @@ export default function AdminClient({ produtos: initial }: Props) {
 
         {/* ── PROMOÇÕES ── */}
         {tab === 'promocoes' && <PromocoesTab />}
+
+        {/* ── USUÁRIOS ── */}
+        {tab === 'usuarios' && <UsuariosTab />}
 
         </main>
       </div>{/* /body flex */}

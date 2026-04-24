@@ -57,38 +57,6 @@ export function validarTelefone(telefone: string): string | null {
   return null;
 }
 
-export function validarCPF(cpf: string): string | null {
-  const digits = cpf.replace(/\D/g, '');
-  if (!digits) return 'CPF é obrigatório';
-  if (digits.length !== 11) return 'CPF deve ter 11 dígitos';
-  // Rejeita sequências iguais (111.111.111-11, etc.)
-  if (/^(\d)\1{10}$/.test(digits)) return 'CPF inválido';
-
-  // Primeiro dígito verificador
-  let soma = 0;
-  for (let i = 0; i < 9; i++) soma += Number(digits[i]) * (10 - i);
-  let resto = soma % 11;
-  const d1 = resto < 2 ? 0 : 11 - resto;
-  if (d1 !== Number(digits[9])) return 'CPF inválido';
-
-  // Segundo dígito verificador
-  soma = 0;
-  for (let i = 0; i < 10; i++) soma += Number(digits[i]) * (11 - i);
-  resto = soma % 11;
-  const d2 = resto < 2 ? 0 : 11 - resto;
-  if (d2 !== Number(digits[10])) return 'CPF inválido';
-
-  return null;
-}
-
-export function mascaraCPF(v: string): string {
-  const d = v.replace(/\D/g, '').slice(0, 11);
-  if (d.length <= 3) return d;
-  if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`;
-  if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`;
-  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
-}
-
 export function mascaraTelefone(v: string): string {
   const d = v.replace(/\D/g, '').slice(0, 11);
   if (d.length <= 2) return d;
