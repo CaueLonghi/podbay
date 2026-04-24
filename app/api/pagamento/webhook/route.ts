@@ -49,6 +49,7 @@ interface DadosSessao {
   valor_frete: number;
   valor_total: number;
   cupom_codigo: string | null;
+  obs: string | null;
   itens: ItemSessao[];
 }
 
@@ -121,8 +122,8 @@ export async function POST(req: NextRequest) {
         `INSERT INTO pedidos
            (usuario_id, modalidade, metodo_pagamento, endereco_id, horario_retirada,
             valor_subtotal, desconto, valor_frete, valor_total, status,
-            infinitepay_slug, infinitepay_transaction_nsu, receipt_url, checkout_nsu)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'pago',$10,$11,$12,$13) RETURNING id`,
+            infinitepay_slug, infinitepay_transaction_nsu, receipt_url, checkout_nsu, obs)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'pago',$10,$11,$12,$13,$14) RETURNING id`,
         [
           dados.usuario_id,
           dados.modalidade,
@@ -137,6 +138,7 @@ export async function POST(req: NextRequest) {
           transaction_nsu ?? null,
           receipt_url ?? null,
           order_nsu,
+          dados.obs ?? null,
         ]
       );
 

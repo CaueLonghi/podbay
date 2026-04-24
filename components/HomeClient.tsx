@@ -182,7 +182,7 @@ export default function HomeClient({ produtos }: Props) {
                           )}
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
-                            src={slugBrand(grupo.marca, grupo.tamanho)}
+                            src={grupo.sabores.find((s) => s.foto_url)?.foto_url ?? slugBrand(grupo.marca, grupo.tamanho)}
                             alt={grupo.marca}
                             className="object-contain w-full flex-1 min-h-0"
                             onError={(e) => {

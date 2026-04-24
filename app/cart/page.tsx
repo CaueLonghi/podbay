@@ -214,6 +214,7 @@ export default function CartPage() {
             endereco_id: null,
             horario_retirada: horario,
             valor_frete: 0,
+            obs: observacao.trim() || null,
             itens: itensPayload,
           }),
         });
@@ -252,6 +253,7 @@ export default function CartPage() {
           horario_retirada: null,
           valor_frete: valorFrete,
           cupom_codigo: cupomInfo?.codigo ?? undefined,
+          obs: observacao.trim() || null,
           itens: itensPayload,
         }),
       });

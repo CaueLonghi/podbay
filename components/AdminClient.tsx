@@ -18,6 +18,7 @@ interface Produto {
   emoji: string | null;
   ativo: number;
   novo: boolean;
+  foto_url: string | null;
 }
 
 interface ItemPedido {
@@ -39,7 +40,7 @@ interface Pedido {
   desconto: number;
   valor_frete: number;
   valor_total: number;
-  codigo_rastreio: string | null;
+  obs: string | null;
   criado_em: string;
   username: string;
   nome_completo: string | null;
@@ -92,7 +93,7 @@ const METODO_LABELS: Record<string, string> = {
 
 const STATUS_SEQUENCE: StatusPedido[] = ['pendente', 'pago', 'enviado', 'entregue', 'cancelado'];
 
-const emptyForm = { marca: '', sabor: '', descricao: '', tamanho: '', valor: '', custo: '', estoque: '0', emoji: '' };
+const emptyForm = { marca: '', sabor: '', descricao: '', tamanho: '', valor: '', custo: '', estoque: '0', emoji: '', foto_url: '' };
 
 
 // ── Faturamento ──────────────────────────────────────────────
@@ -534,6 +535,69 @@ function FaturamentoTab({ pedidos, produtos }: { pedidos: Pedido[]; produtos: Pr
   );
 }
 
+// ── FotoUpload ────────────────────────────────────────────────
+// Comprime a imagem no browser (max 700px, WebP 0.82) e salva como base64 no banco.
+// Zero dependências externas, zero configuração.
+function FotoUpload({ value, onChange }: { value: string; onChange: (url: string) => void }) {
+  const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState('');
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { setError('Apenas imagens'); return; }
+    setError('');
+    setProcessing(true);
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 700;
+        let { width, height } = img;
+        if (width > height) {
+          if (width > MAX) { height = Math.round((height * MAX) / width); width = MAX; }
+        } else {
+          if (height > MAX) { width = Math.round((width * MAX) / height); height = MAX; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
+        onChange(canvas.toDataURL('image/webp', 0.82));
+        setProcessing(false);
+      };
+      img.onerror = () => { setError('Erro ao ler imagem'); setProcessing(false); };
+      img.src = reader.result as string;
+    };
+    reader.onerror = () => { setError('Erro ao ler arquivo'); setProcessing(false); };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        {value && (
+          <img src={value} alt="preview" className="w-14 h-14 object-cover rounded-xl border border-[#3d3d4d] flex-shrink-0" />
+        )}
+        <label className={`flex items-center gap-2 cursor-pointer px-3 py-2 rounded-xl border text-xs font-semibold transition-colors ${
+          processing ? 'opacity-50 cursor-not-allowed border-[#3d3d4d] text-muted' : 'border-primary/40 text-primary hover:bg-primary/10'
+        }`}>
+          <input type="file" accept="image/*" className="hidden" onChange={handleFile} disabled={processing} />
+          {processing ? 'Processando...' : value ? 'Trocar foto' : 'Adicionar foto'}
+        </label>
+        {value && (
+          <button type="button" onClick={() => onChange('')} className="text-[10px] text-muted hover:text-red-400 transition-colors">
+            Remover
+          </button>
+        )}
+      </div>
+      {error && <p className="text-xs text-red-400">{error}</p>}
+    </div>
+  );
+}
+
 // ── PromocoesTab ─────────────────────────────────────────────
 interface Cupom {
   id: number;
@@ -694,7 +758,6 @@ export default function AdminClient({ produtos: initial }: Props) {
   const [modalidadeFiltro, setModalidadeFiltro] = useState<ModalidadeFiltro>('all');
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
-  const [rastreioEdit, setRastreioEdit] = useState<Record<number, string>>({});
 
   useEffect(() => {
     if ((tab !== 'vendas' && tab !== 'faturamento') || pedidos.length > 0) return;
@@ -734,19 +797,6 @@ export default function AdminClient({ produtos: initial }: Props) {
     setUpdatingId(null);
   }
 
-  async function saveRastreio(id: number) {
-    const codigo = rastreioEdit[id] ?? '';
-    setUpdatingId(id);
-    await fetch(`/api/admin/pedidos/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ codigo_rastreio: codigo }),
-    });
-    setPedidos((prev) => prev.map((p) => p.id === id ? { ...p, codigo_rastreio: codigo || null } : p));
-    setRastreioEdit((prev) => { const n = { ...prev }; delete n[id]; return n; });
-    setUpdatingId(null);
-  }
-
   // ── Estoque ──────────────────────────────────────────────────
   const [produtos, setProdutos] = useState<Produto[]>(initial);
   const [filtroMarca, setFiltroMarca] = useState('all');
@@ -765,6 +815,12 @@ export default function AdminClient({ produtos: initial }: Props) {
   const [savingStock, setSavingStock] = useState<Record<number, boolean>>({});
   // savedStock: IDs que acabaram de ser salvos (para mostrar check verde)
   const [savedStock, setSavedStock] = useState<Record<number, boolean>>({});
+  // tamanhoPreco: edicoes de valor/custo por grupo (chave: `${marca}___${tamanho}`)
+  const [tamanhoPreco, setTamanhoPreco] = useState<Record<string, { valor: string; custo: string }>>({});
+  const [savingPreco, setSavingPreco] = useState<Record<string, boolean>>({});
+  const [savedPreco, setSavedPreco] = useState<Record<string, boolean>>({});
+  // togglingAtivo: grupos sendo ativados/desativados
+  const [togglingAtivo, setTogglingAtivo] = useState<Record<string, boolean>>({});
 
   // Produtos agrupados por marca, cada marca com sabores em ordem alfabética
   const marcasAgrupadas = useMemo(() => {
@@ -813,6 +869,47 @@ export default function AdminClient({ produtos: initial }: Props) {
     setTimeout(() => setSavedStock((prev) => { const n = { ...prev }; delete n[id]; return n; }), 2000);
   }
 
+  async function savePreco(marca: string, tamanho: string, prods: Produto[]) {
+    const key = `${marca}___${tamanho}`;
+    const precoData = tamanhoPreco[key];
+    if (!precoData) return;
+    const valor = Number(precoData.valor);
+    const custo = Number(precoData.custo || '0');
+    if (isNaN(valor) || valor <= 0) return;
+    setSavingPreco((prev) => ({ ...prev, [key]: true }));
+    await Promise.all(prods.map((p) =>
+      fetch(`/api/admin/catalogo/${p.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ valor, custo }),
+      })
+    ));
+    setProdutos((prev) => prev.map((x) =>
+      prods.some((p) => p.id === x.id) ? { ...x, valor, custo } : x
+    ));
+    setTamanhoPreco((prev) => { const n = { ...prev }; delete n[key]; return n; });
+    setSavingPreco((prev) => { const n = { ...prev }; delete n[key]; return n; });
+    setSavedPreco((prev) => ({ ...prev, [key]: true }));
+    setTimeout(() => setSavedPreco((prev) => { const n = { ...prev }; delete n[key]; return n; }), 2000);
+  }
+
+  async function toggleTamanhoAtivo(marca: string, tamanho: string, prods: Produto[]) {
+    const key = `${marca}___${tamanho}`;
+    const novoAtivo = !prods.some((p) => p.ativo);
+    setTogglingAtivo((prev) => ({ ...prev, [key]: true }));
+    await Promise.all(prods.map((p) =>
+      fetch(`/api/admin/catalogo/${p.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ativo: novoAtivo }),
+      })
+    ));
+    setProdutos((prev) => prev.map((x) =>
+      prods.some((p) => p.id === x.id) ? { ...x, ativo: novoAtivo ? 1 : 0 } : x
+    ));
+    setTogglingAtivo((prev) => { const n = { ...prev }; delete n[key]; return n; });
+  }
+
   // ── Deletar produto ──────────────────────────────────────────
   async function handleDelete(id: number) {
     if (!confirm('Desativar este produto?')) return;
@@ -836,6 +933,7 @@ export default function AdminClient({ produtos: initial }: Props) {
           valor: Number(form.valor),
           custo: Number(form.custo ?? 0),
           estoque: Number(form.estoque),
+          foto_url: form.foto_url || null,
         }),
       });
       const data = await res.json();
@@ -852,6 +950,7 @@ export default function AdminClient({ produtos: initial }: Props) {
         emoji: form.emoji || null,
         ativo: 1,
         novo: false,
+        foto_url: form.foto_url || null,
       }]);
       setForm(emptyForm);
       setShowForm(false);
@@ -874,6 +973,7 @@ export default function AdminClient({ produtos: initial }: Props) {
       custo: String(p.custo ?? ''),
       estoque: String(p.estoque),
       emoji: p.emoji ?? '',
+      foto_url: p.foto_url ?? '',
     });
     setEditError('');
   }
@@ -892,6 +992,7 @@ export default function AdminClient({ produtos: initial }: Props) {
           valor: Number(editForm.valor),
           custo: Number(editForm.custo ?? 0),
           estoque: Number(editForm.estoque),
+          foto_url: editForm.foto_url || null,
         }),
       });
       const data = await res.json();
@@ -900,7 +1001,7 @@ export default function AdminClient({ produtos: initial }: Props) {
         p.id === editingId
           ? { ...p, marca: editForm.marca, sabor: editForm.sabor, descricao: editForm.descricao || null,
               tamanho: editForm.tamanho, valor: Number(editForm.valor), custo: Number(editForm.custo ?? 0),
-              estoque: Number(editForm.estoque), emoji: editForm.emoji || null }
+              estoque: Number(editForm.estoque), emoji: editForm.emoji || null, foto_url: editForm.foto_url || null }
           : p
       ));
       setEditingId(null);
@@ -1059,21 +1160,23 @@ export default function AdminClient({ produtos: initial }: Props) {
             )}
 
             {!loadingPedidos && pedidosAtivos.map((pedido) => {
-              const expanded = expandedId === pedido.id;
               const isUpdating = updatingId === pedido.id;
-              const rastreioVal = rastreioEdit[pedido.id] ?? pedido.codigo_rastreio ?? '';
-              const rastreioChanged = rastreioEdit[pedido.id] !== undefined && rastreioEdit[pedido.id] !== (pedido.codigo_rastreio ?? '');
+              const dt = new Date(pedido.criado_em);
+              const hora = dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+              const data = dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+              const waNum = pedido.telefone ? pedido.telefone.replace(/\D/g, '') : null;
+              const waLink = waNum
+                ? `https://wa.me/55${waNum}`
+                : null;
 
               return (
                 <div key={pedido.id} className="bg-surface border border-[#3d3d4d] rounded-2xl overflow-hidden">
-                  {/* Cabeçalho do card */}
-                  <button
-                    className="w-full px-4 py-3 flex items-start gap-3 text-left active:bg-[#2a2a3d]/40"
-                    onClick={() => setExpandedId(expanded ? null : pedido.id)}
-                  >
+
+                  {/* ── Cabeçalho: #ID · nome · hora · data ── */}
+                  <div className="px-4 pt-3 pb-2 flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-bold text-foreground">#{pedido.id}</span>
+                      <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                        <span className="text-[11px] font-black text-muted">#{pedido.id}</span>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border ${STATUS_COLORS[pedido.status]}`}>
                           {STATUS_LABELS[pedido.status]}
                         </span>
@@ -1082,139 +1185,110 @@ export default function AdminClient({ produtos: initial }: Props) {
                         </span>
                         {pedido.metodo_pagamento && (
                           <span className="text-[10px] text-muted bg-[#2a2a3d] px-2 py-0.5 rounded-lg">
-                            {METODO_LABELS[pedido.metodo_pagamento]}
+                            {METODO_LABELS[pedido.metodo_pagamento] ?? pedido.metodo_pagamento}
                           </span>
                         )}
                       </div>
-                      <p className="text-sm font-semibold text-foreground mt-0.5 truncate">
+                      <p className="text-sm font-bold text-foreground leading-tight truncate">
                         {pedido.nome_completo || pedido.username}
                       </p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-xs font-bold text-primary">{formatPrice(pedido.valor_total)}</span>
-                        <span className="text-[10px] text-muted flex items-center gap-0.5">
-                          <Clock size={10} />
-                          {new Date(pedido.criado_em).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}
-                        </span>
-                      </div>
                     </div>
-                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                      {pedido.modalidade === 'retirada' && pedido.horario_retirada && (
-                        <div className="text-right">
-                          <p className="text-[10px] font-black text-primary uppercase tracking-wider">
-                            {new Date(pedido.criado_em).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
-                          </p>
-                          <p className="text-base font-black text-primary leading-tight">
-                            {pedido.horario_retirada}
-                          </p>
-                        </div>
-                      )}
-                      <span className="text-muted text-xs">{expanded ? '▲' : '▼'}</span>
+                    <div className="flex-shrink-0 text-right">
+                      <p className="text-sm font-black text-primary leading-none">{hora}</p>
+                      <p className="text-[11px] text-muted mt-0.5">{data}</p>
                     </div>
-                  </button>
+                  </div>
 
-                  {/* Detalhe expandido */}
-                  {expanded && (
-                    <div className="border-t border-[#3d3d4d] px-4 pt-3 pb-4 flex flex-col gap-4">
-
-                      {/* Itens */}
-                      <div>
-                        <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-2">Itens</p>
-                        <div className="flex flex-col gap-1.5">
-                          {pedido.itens.map((item, i) => (
-                            <div key={i} className="flex items-center justify-between gap-2">
-                              <div className="min-w-0">
-                                <p className="text-xs font-semibold text-foreground truncate">
-                                  {item.nome_produto} {item.tamanho} — {item.sabor}
-                                </p>
-                              </div>
-                              <div className="flex-shrink-0 text-right">
-                                <span className="text-xs text-muted">{item.quantidade}x </span>
-                                <span className="text-xs font-bold text-foreground">{formatPrice(item.valor_unitario)}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                        {/* Resumo financeiro */}
-                        <div className="mt-2 pt-2 border-t border-[#3d3d4d] flex flex-col gap-0.5 text-xs text-muted">
-                          {pedido.desconto > 0 && <div className="flex justify-between"><span>Desconto</span><span className="text-green-400">-{formatPrice(pedido.desconto)}</span></div>}
-                          {pedido.valor_frete > 0 && <div className="flex justify-between"><span>Frete</span><span>{formatPrice(pedido.valor_frete)}</span></div>}
-                          <div className="flex justify-between font-bold text-foreground text-sm mt-0.5">
-                            <span>Total</span><span className="text-primary">{formatPrice(pedido.valor_total)}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Endereço / Retirada */}
-                      <div>
-                        <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-1 flex items-center gap-1">
-                          <MapPin size={10} /> {pedido.modalidade === 'retirada' ? 'Retirada no local' : 'Endereco de entrega'}
+                  {/* ── Itens ── */}
+                  <div className="px-4 py-2 border-t border-[#3d3d4d] flex flex-col gap-1">
+                    {pedido.itens.map((item, i) => (
+                      <div key={i} className="flex items-baseline justify-between gap-2">
+                        <p className="text-xs text-foreground">
+                          <span className="font-black text-primary">{item.quantidade}x</span>
+                          {' '}{item.nome_produto} {item.tamanho}
+                          <span className="text-muted"> · {item.sabor}</span>
                         </p>
-                        {pedido.modalidade === 'retirada' ? (
-                          <p className="text-xs text-foreground">
-                            Horario: <span className="font-bold text-primary">{pedido.horario_retirada}</span>
-                          </p>
-                        ) : pedido.end_logradouro ? (
-                          <>
-                            {pedido.end_apelido && (
-                              <span className="text-[10px] font-bold text-primary">{pedido.end_apelido} · </span>
-                            )}
-                            <p className="text-xs text-foreground">
-                              {pedido.end_logradouro}, {pedido.end_numero}
-                              {pedido.end_complemento ? ` / ${pedido.end_complemento}` : ''}
-                            </p>
-                            <p className="text-xs text-muted">
-                              {pedido.end_bairro} — {pedido.end_cidade}/{pedido.end_estado} · CEP {pedido.end_cep}
-                            </p>
-                          </>
-                        ) : (
-                          <p className="text-xs text-muted">Endereco nao informado</p>
+                        <span className="text-[11px] text-muted flex-shrink-0">{formatPrice(item.valor_unitario)}</span>
+                      </div>
+                    ))}
+                    {(pedido.desconto > 0 || pedido.valor_frete > 0) && (
+                      <div className="flex items-center gap-3 mt-1 pt-1 border-t border-[#3d3d4d]">
+                        {pedido.desconto > 0 && (
+                          <span className="text-[10px] text-green-400 font-semibold">-{formatPrice(pedido.desconto)}</span>
                         )}
+                        {pedido.valor_frete > 0 && (
+                          <span className="text-[10px] text-muted">frete {formatPrice(pedido.valor_frete)}</span>
+                        )}
+                        <span className="ml-auto text-xs font-black text-primary">{formatPrice(pedido.valor_total)}</span>
                       </div>
+                    )}
+                    {pedido.desconto === 0 && pedido.valor_frete === 0 && (
+                      <div className="flex justify-end mt-0.5">
+                        <span className="text-xs font-black text-primary">{formatPrice(pedido.valor_total)}</span>
+                      </div>
+                    )}
+                  </div>
 
-                      {/* Código de rastreio — apenas para entrega */}
-                      {pedido.modalidade === 'entrega' && (
-                        <div>
-                          <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-1">Codigo de rastreio</p>
-                          <div className="flex gap-2">
-                            <input
-                              value={rastreioVal}
-                              onChange={(e) => setRastreioEdit((prev) => ({ ...prev, [pedido.id]: e.target.value }))}
-                              placeholder="Ex: BR123456789BR"
-                              className="flex-1 bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-xs text-foreground placeholder:text-muted focus:border-primary"
-                            />
-                            {rastreioChanged && (
-                              <button
-                                onClick={() => saveRastreio(pedido.id)}
-                                disabled={isUpdating}
-                                className="px-3 py-2 bg-primary text-white text-xs font-bold rounded-xl disabled:opacity-50"
-                              >
-                                {isUpdating ? '...' : <Check size={14} />}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Ações de status */}
-                      <div>
-                        <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-2 flex items-center gap-1">
-                          <CreditCard size={10} /> Alterar status
+                  {/* ── Endereço / Retirada ── */}
+                  <div className="px-4 py-2 border-t border-[#3d3d4d] flex items-start gap-1.5">
+                    <MapPin size={11} className="text-muted flex-shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      {pedido.modalidade === 'retirada' ? (
+                        <p className="text-xs text-foreground">
+                          Retirada — <span className="font-bold text-primary">{pedido.horario_retirada}</span>
                         </p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {STATUS_SEQUENCE.filter((s) => s !== pedido.status).map((s) => (
-                            <button
-                              key={s}
-                              onClick={() => updateStatus(pedido.id, s)}
-                              disabled={isUpdating}
-                              className={`text-xs font-semibold px-3 py-1.5 rounded-xl border transition-all disabled:opacity-40 ${STATUS_COLORS[s]}`}
-                            >
-                              {isUpdating ? '...' : STATUS_LABELS[s]}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
+                      ) : pedido.end_logradouro ? (
+                        <>
+                          <p className="text-xs text-foreground">
+                            {pedido.end_logradouro}, {pedido.end_numero}
+                            {pedido.end_complemento ? ` / ${pedido.end_complemento}` : ''}
+                            {pedido.end_apelido ? ` (${pedido.end_apelido})` : ''}
+                          </p>
+                          <p className="text-[10px] text-muted">
+                            {pedido.end_bairro} · {pedido.end_cidade}/{pedido.end_estado} · {pedido.end_cep}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-xs text-muted">Endereco nao informado</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* ── OBS ── */}
+                  {pedido.obs && (
+                    <div className="px-4 py-2 border-t border-[#3d3d4d] flex items-start gap-1.5">
+                      <span className="text-[10px] font-bold text-muted uppercase tracking-wider flex-shrink-0 mt-0.5">OBS</span>
+                      <p className="text-xs text-foreground">{pedido.obs}</p>
                     </div>
                   )}
+
+                  {/* ── Rodapé: WhatsApp + alterar status ── */}
+                  <div className="px-4 py-2 border-t border-[#3d3d4d] flex items-center gap-2 flex-wrap">
+                    {waLink && (
+                      <a
+                        href={waLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 text-[10px] font-bold px-3 py-1.5 rounded-xl bg-green-500/10 text-green-400 border border-green-500/30 hover:bg-green-500/20 transition-colors"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                        WhatsApp
+                      </a>
+                    )}
+                    <div className="flex gap-1.5 flex-wrap">
+                      {STATUS_SEQUENCE.filter((s) => s !== pedido.status).map((s) => (
+                        <button
+                          key={s}
+                          onClick={() => updateStatus(pedido.id, s)}
+                          disabled={isUpdating}
+                          className={`text-[10px] font-bold px-2.5 py-1 rounded-xl border transition-all disabled:opacity-40 ${STATUS_COLORS[s]}`}
+                        >
+                          {isUpdating ? '...' : STATUS_LABELS[s]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                 </div>
               );
             })}
@@ -1264,6 +1338,7 @@ export default function AdminClient({ produtos: initial }: Props) {
                     onChange={(e) => setForm((p) => ({ ...p, estoque: e.target.value }))}
                     className="bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary" />
                 </div>
+                <FotoUpload value={form.foto_url} onChange={(url) => setForm((p) => ({ ...p, foto_url: url }))} />
                 {formError && <p className="text-xs text-red-400">{formError}</p>}
                 <button type="submit" disabled={saving}
                   className="w-full bg-primary text-white rounded-xl py-2.5 text-sm font-bold disabled:opacity-50">
@@ -1303,34 +1378,106 @@ export default function AdminClient({ produtos: initial }: Props) {
 
                     {/* Grupos por tamanho */}
                     <div className="flex flex-col gap-3">
-                      {tamanhos.map(({ tamanho, produtos: prods }) => (
-                        <div key={tamanho} className="bg-background border border-[#3d3d4d] rounded-xl p-3 flex flex-col gap-2">
+                      {tamanhos.map(({ tamanho, produtos: prods }) => {
+                          const grupoKey = `${marca}___${tamanho}`;
+                          const grupoAtivo = prods.some((p) => p.ativo);
+                          const isToggling = togglingAtivo[grupoKey];
+                          return (
+                        <div key={tamanho} className={`bg-background border rounded-xl p-3 flex flex-col gap-2 transition-opacity ${grupoAtivo ? 'border-[#3d3d4d]' : 'border-red-400/20 opacity-50'}`}>
 
                           {/* Cabeçalho do tamanho */}
-                          <div className="flex items-center gap-2 pb-1 border-b border-[#3d3d4d]">
-                            <span className="text-xs font-bold text-foreground">{tamanho}</span>
-                            <span className="text-[10px] text-muted">{prods.length} sabor{prods.length !== 1 ? 'es' : ''}</span>
-                            <label className="flex items-center gap-1 cursor-pointer ml-auto">
-                              <input
-                                type="checkbox"
-                                checked={prods.some((p) => p.novo)}
-                                onChange={async (e) => {
-                                  const novoVal = e.target.checked;
-                                  setProdutos((prev) => prev.map((x) =>
-                                    prods.some((p) => p.id === x.id) ? { ...x, novo: novoVal } : x
-                                  ));
-                                  await Promise.all(prods.map((p) =>
-                                    fetch(`/api/admin/catalogo/${p.id}`, {
-                                      method: 'PATCH',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ novo: novoVal }),
-                                    })
-                                  ));
-                                }}
-                                className="w-3.5 h-3.5 accent-orange-400 cursor-pointer"
-                              />
-                              <span className="text-[10px] font-extrabold text-orange-400">NOVO</span>
-                            </label>
+                          <div className="flex flex-col gap-2 pb-2 border-b border-[#3d3d4d]">
+                            {/* Linha 1: nome, contagem, toggle ativo, NOVO */}
+                            <div className="flex items-center gap-2">
+                              <span className={`text-xs font-bold ${grupoAtivo ? 'text-foreground' : 'text-muted line-through'}`}>{tamanho}</span>
+                              <span className="text-[10px] text-muted">{prods.length} sabor{prods.length !== 1 ? 'es' : ''}</span>
+                              <button
+                                onClick={() => toggleTamanhoAtivo(marca, tamanho, prods)}
+                                disabled={isToggling}
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border transition-colors disabled:opacity-40 ${
+                                  grupoAtivo
+                                    ? 'text-red-400 border-red-400/30 hover:bg-red-400/10'
+                                    : 'text-green-400 border-green-400/30 hover:bg-green-400/10'
+                                }`}
+                              >
+                                {isToggling ? '...' : grupoAtivo ? 'Desativar' : 'Ativar'}
+                              </button>
+                              <label className="flex items-center gap-1 cursor-pointer ml-auto">
+                                <input
+                                  type="checkbox"
+                                  checked={prods.some((p) => p.novo)}
+                                  onChange={async (e) => {
+                                    const novoVal = e.target.checked;
+                                    setProdutos((prev) => prev.map((x) =>
+                                      prods.some((p) => p.id === x.id) ? { ...x, novo: novoVal } : x
+                                    ));
+                                    await Promise.all(prods.map((p) =>
+                                      fetch(`/api/admin/catalogo/${p.id}`, {
+                                        method: 'PATCH',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ novo: novoVal }),
+                                      })
+                                    ));
+                                  }}
+                                  className="w-3.5 h-3.5 accent-orange-400 cursor-pointer"
+                                />
+                                <span className="text-[10px] font-extrabold text-orange-400">NOVO</span>
+                              </label>
+                            </div>
+                            {/* Linha 2: valor/custo por tamanho (aplica a todos os sabores) */}
+                            {(() => {
+                              const key = `${marca}___${tamanho}`;
+                              const rep = prods[0];
+                              const editData = tamanhoPreco[key];
+                              const currentValor = editData?.valor ?? String(rep.valor);
+                              const currentCusto = editData?.custo ?? String(rep.custo ?? '0');
+                              const isDirty = editData !== undefined;
+                              const isSaving = savingPreco[key];
+                              const isSaved = savedPreco[key];
+                              return (
+                                <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-[10px] text-muted font-medium">R$</span>
+                                    <input
+                                      type="number" min="0" step="0.01"
+                                      value={currentValor}
+                                      onChange={(e) => setTamanhoPreco((prev) => ({
+                                        ...prev,
+                                        [key]: { valor: e.target.value, custo: prev[key]?.custo ?? String(rep.custo ?? '0') },
+                                      }))}
+                                      className="w-20 bg-[#2a2a3d] border border-[#3d3d4d] rounded-lg px-2 py-1 text-xs text-foreground focus:border-primary focus:outline-none"
+                                      placeholder="Valor"
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-[10px] text-muted font-medium">custo</span>
+                                    <input
+                                      type="number" min="0" step="0.01"
+                                      value={currentCusto}
+                                      onChange={(e) => setTamanhoPreco((prev) => ({
+                                        ...prev,
+                                        [key]: { valor: prev[key]?.valor ?? String(rep.valor), custo: e.target.value },
+                                      }))}
+                                      className="w-20 bg-[#2a2a3d] border border-[#3d3d4d] rounded-lg px-2 py-1 text-xs text-foreground focus:border-primary focus:outline-none"
+                                      placeholder="Custo"
+                                    />
+                                  </div>
+                                  {isSaved ? (
+                                    <span className="flex items-center gap-0.5 text-green-400 text-[10px] font-bold ml-auto">
+                                      <Check size={11} /> Salvo
+                                    </span>
+                                  ) : isDirty ? (
+                                    <button
+                                      onClick={() => savePreco(marca, tamanho, prods)}
+                                      disabled={isSaving}
+                                      className="ml-auto flex items-center gap-0.5 text-[10px] font-bold px-2 py-1 rounded-lg bg-primary text-white hover:bg-secondary disabled:opacity-50 transition-colors"
+                                    >
+                                      {isSaving ? '...' : <><Check size={11} /> Salvar</>}
+                                    </button>
+                                  ) : null}
+                                </div>
+                              );
+                            })()}
                           </div>
 
                           {/* Sabores deste tamanho */}
@@ -1338,14 +1485,16 @@ export default function AdminClient({ produtos: initial }: Props) {
                             {prods.map((p: Produto) => (
                               <div key={p.id} className="flex flex-col">
                                 <div className="flex flex-col gap-0.5 px-1 pt-2 pb-1">
-                                  {/* Linha: nome + ações */}
+                                  {/* Linha: foto + nome + ações */}
                                   <div className="flex items-center gap-2">
+                                    {p.foto_url && (
+                                      <img src={p.foto_url} alt={p.sabor} className="w-10 h-10 object-cover rounded-lg flex-shrink-0 border border-[#3d3d4d]" />
+                                    )}
                                     <div className="flex-1 min-w-0">
                                       <div className="flex items-center gap-1.5">
                                         <p className="text-base font-semibold text-foreground truncate leading-tight">{p.sabor}</p>
                                         {p.emoji && <span className="text-base">{p.emoji}</span>}
                                       </div>
-                                      <p className="text-xs text-muted">{formatPrice(p.valor)}{p.custo > 0 && <span className="ml-1 text-muted/60">· custo {formatPrice(p.custo)}</span>}</p>
                                     </div>
                                     <div className="flex gap-1 flex-shrink-0">
                                       <button onClick={() => editingId === p.id ? setEditingId(null) : startEdit(p)}
@@ -1427,6 +1576,7 @@ export default function AdminClient({ produtos: initial }: Props) {
                                         onChange={(e) => setEditForm((f) => ({ ...f, estoque: e.target.value }))}
                                         className="bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary" />
                                     </div>
+                                    <FotoUpload value={editForm.foto_url} onChange={(url) => setEditForm((f) => ({ ...f, foto_url: url }))} />
                                     {editError && <p className="text-xs text-red-400">{editError}</p>}
                                     <div className="flex gap-2">
                                       <button type="button" onClick={() => setEditingId(null)}
@@ -1444,7 +1594,8 @@ export default function AdminClient({ produtos: initial }: Props) {
                             ))}
                           </div>
                         </div>
-                      ))}
+                      );
+                    })}
                     </div>
                   </div>
                 );

@@ -22,7 +22,7 @@ export async function GET() {
       p.desconto,
       p.valor_frete,
       p.valor_total,
-      p.codigo_rastreio,
+      p.obs,
       p.criado_em,
       u.username,
       u.nome_completo,

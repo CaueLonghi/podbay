@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Nao autenticado' }, { status: 401 });
 
   const body = await req.json();
-  const { itens, modalidade, metodo_pagamento, endereco_id, horario_retirada, valor_frete, cupom_codigo } = body as {
+  const { itens, modalidade, metodo_pagamento, endereco_id, horario_retirada, valor_frete, cupom_codigo, obs } = body as {
     itens: ItemPayload[];
     modalidade: 'entrega' | 'retirada';
     metodo_pagamento: 'dinheiro' | 'pix' | null;
@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
     horario_retirada: string | null;
     valor_frete?: number;
     cupom_codigo?: string;
+    obs?: string | null;
   };
 
   if (!itens || itens.length === 0) {
@@ -88,8 +89,8 @@ export async function POST(req: NextRequest) {
     const { rows: [pedido] } = await db.query(
       `INSERT INTO pedidos
          (usuario_id, modalidade, metodo_pagamento, endereco_id, horario_retirada,
-          valor_subtotal, desconto, valor_frete, valor_total, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pendente') RETURNING id`,
+          valor_subtotal, desconto, valor_frete, valor_total, status, obs)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pendente', $10) RETURNING id`,
       [
         Number(user.id),
         modalidade,
@@ -100,6 +101,7 @@ export async function POST(req: NextRequest) {
         desconto,
         frete,
         valor_total,
+        obs ?? null,
       ]
     );
 
