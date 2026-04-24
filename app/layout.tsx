@@ -15,7 +15,7 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: 'PODBAY — Sua loja de PODs',
+  title: 'PODBAY',
   description: 'Seu delivery favorito de PODs',
 };
 

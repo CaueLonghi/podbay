@@ -143,6 +143,19 @@ export async function POST(req: NextRequest) {
       rowValues.flat()
     );
 
+    // Reduz estoque de cada produto (mínimo 0)
+    const itensComProduto = itens.filter((i) => Number(i.produto_id));
+    if (itensComProduto.length > 0) {
+      await Promise.all(
+        itensComProduto.map((i) =>
+          db.query(
+            'UPDATE catalogo SET estoque = GREATEST(0, estoque - $1) WHERE id = $2',
+            [i.quantidade, Number(i.produto_id)]
+          )
+        )
+      );
+    }
+
     return NextResponse.json({ ok: true, pedido_id: pedidoId });
   } catch (err) {
     console.error('[POST /api/pedidos]', err);

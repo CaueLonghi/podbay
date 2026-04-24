@@ -21,10 +21,10 @@ export async function PATCH(req: NextRequest) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
 
-  const { nome_completo, email, telefone, senha_atual, nova_senha } = await req.json();
+  const { email, telefone, senha_atual, nova_senha } = await req.json();
 
-  if (!nome_completo || !email || !telefone) {
-    return NextResponse.json({ error: 'Nome, e-mail e telefone são obrigatórios' }, { status: 400 });
+  if (!email || !telefone) {
+    return NextResponse.json({ error: 'E-mail e telefone são obrigatórios' }, { status: 400 });
   }
 
   // Verifica duplicidade de e-mail (excluindo o próprio usuário)
@@ -60,13 +60,13 @@ export async function PATCH(req: NextRequest) {
     }
     const hash = await bcrypt.hash(nova_senha, 10);
     await db.query(
-      'UPDATE usuarios SET nome_completo = $1, email = $2, telefone = $3, password_hash = $4 WHERE id = $5',
-      [nome_completo, email, telefone, hash, user.id]
+      'UPDATE usuarios SET email = $1, telefone = $2, password_hash = $3 WHERE id = $4',
+      [email, telefone, hash, user.id]
     );
   } else {
     await db.query(
-      'UPDATE usuarios SET nome_completo = $1, email = $2, telefone = $3 WHERE id = $4',
-      [nome_completo, email, telefone, user.id]
+      'UPDATE usuarios SET email = $1, telefone = $2 WHERE id = $3',
+      [email, telefone, user.id]
     );
   }
 

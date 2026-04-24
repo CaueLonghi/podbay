@@ -21,10 +21,27 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Status invalido' }, { status: 400 });
   }
 
-  const fields = [`status = $1`];
-  const values: (string | number)[] = [status];
+  // Se for cancelar, restaura estoque (só se ainda não estava cancelado)
+  if (status === 'cancelado') {
+    const { rows: [atual] } = await db.query('SELECT status FROM pedidos WHERE id = $1', [id]);
+    if (atual && atual.status !== 'cancelado') {
+      const { rows: itens } = await db.query(
+        'SELECT produto_id, quantidade FROM itens_pedido WHERE pedido_id = $1 AND produto_id IS NOT NULL',
+        [id]
+      );
+      if (itens.length > 0) {
+        await Promise.all(
+          itens.map((i: { produto_id: number; quantidade: number }) =>
+            db.query(
+              'UPDATE catalogo SET estoque = estoque + $1 WHERE id = $2',
+              [i.quantidade, i.produto_id]
+            )
+          )
+        );
+      }
+    }
+  }
 
-  values.push(id);
-  await db.query(`UPDATE pedidos SET ${fields.join(', ')} WHERE id = $2`, values);
+  await db.query('UPDATE pedidos SET status = $1 WHERE id = $2', [status, id]);
   return NextResponse.json({ ok: true });
 }

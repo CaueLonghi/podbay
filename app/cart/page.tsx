@@ -445,16 +445,6 @@ export default function CartPage() {
                   </div>
                 </div>
 
-                {/* Método de pagamento: informativo */}
-                {modalidade && (
-                  <div className="bg-surface border border-[#3d3d4d] rounded-2xl px-4 py-3 flex items-center gap-3 text-sm text-muted">
-                    {modalidade === 'entrega'
-                      ? <><span className="text-base">💳</span> Pagamento via PIX ou cartão na próxima etapa</>
-                      : <><span className="text-base">💵</span> Pagamento em dinheiro na retirada</>
-                    }
-                  </div>
-                )}
-
                 {/* Entrega: endereço */}
                 {modalidade === 'entrega' && (
                   <div className="bg-surface border border-[#3d3d4d] rounded-2xl p-4 flex flex-col gap-3">
@@ -521,6 +511,19 @@ export default function CartPage() {
                         </form>
                       </>
                     )}
+                  </div>
+                )}
+
+                {/* Segurança de pagamento — só para entrega (PIX/cartão) */}
+                {modalidade === 'entrega' && (
+                  <div className="bg-surface border border-[#3d3d4d] rounded-2xl px-4 py-4 flex flex-col gap-3">
+                    <div className="flex items-center gap-3">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src="/infinitepay-logo.png" alt="InfinitePay" className="h-7 object-contain" />
+                    </div>
+                    <p className="text-xs text-muted leading-relaxed">
+                      🔒 A <span className="text-foreground font-semibold">PodBay</span> não armazena nenhum dado do seu cartão ou informações de pagamento. Todas as transações são processadas com criptografia pela <span className="text-foreground font-semibold">InfinitePay</span>, garantindo sua privacidade e segurança.
+                    </p>
                   </div>
                 )}
 

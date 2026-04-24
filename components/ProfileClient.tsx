@@ -55,7 +55,6 @@ export default function ProfileClient({ usuario, enderecos: initial }: Props) {
   const [editError, setEditError] = useState('');
   const [editSuccess, setEditSuccess] = useState(false);
   const [editForm, setEditForm] = useState({
-    nome_completo: '',
     email: '',
     telefone: '',
     senha_atual: '',
@@ -66,7 +65,6 @@ export default function ProfileClient({ usuario, enderecos: initial }: Props) {
   function openEdit() {
     if (!usuarioLocal) return;
     setEditForm({
-      nome_completo: usuarioLocal.nome_completo,
       email: usuarioLocal.email,
       telefone: usuarioLocal.telefone ?? '',
       senha_atual: '',
@@ -90,7 +88,7 @@ export default function ProfileClient({ usuario, enderecos: initial }: Props) {
       });
       const data = await res.json();
       if (!res.ok) { setEditError(data.error ?? 'Erro ao salvar'); return; }
-      setUsuarioLocal((prev) => prev ? { ...prev, nome_completo: editForm.nome_completo, email: editForm.email, telefone: editForm.telefone } : prev);
+      setUsuarioLocal((prev) => prev ? { ...prev, email: editForm.email, telefone: editForm.telefone } : prev);
       setEditSuccess(true);
       setTimeout(() => { setEditOpen(false); setEditSuccess(false); router.refresh(); }, 1200);
     } catch {
@@ -485,16 +483,6 @@ export default function ProfileClient({ usuario, enderecos: initial }: Props) {
             </div>
 
             <form onSubmit={handleEditSave} className="overflow-y-auto px-5 pb-8 flex flex-col gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-muted uppercase tracking-wide">Nome completo *</label>
-                <input
-                  required
-                  value={editForm.nome_completo}
-                  onChange={(e) => setEditForm((p) => ({ ...p, nome_completo: e.target.value }))}
-                  className="bg-background border border-[#3d3d4d] rounded-xl px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none"
-                />
-              </div>
-
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-medium text-muted uppercase tracking-wide">E-mail *</label>
                 <input
