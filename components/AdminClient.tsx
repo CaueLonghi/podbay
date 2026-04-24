@@ -846,6 +846,55 @@ export default function AdminClient({ produtos: initial }: Props) {
       }));
   }, [produtos, filtroMarca]);
 
+  // addSabor: chave `${marca}___${tamanho}` do grupo com form aberto
+  const [addSaborKey, setAddSaborKey] = useState<string | null>(null);
+  const [addSaborForm, setAddSaborForm] = useState({ sabor: '', descricao: '', emoji: '', estoque: '0' });
+  const [addSaborSaving, setAddSaborSaving] = useState(false);
+  const [addSaborError, setAddSaborError] = useState('');
+
+  async function handleAddSabor(marca: string, tamanho: string, prods: Produto[]) {
+    if (!addSaborForm.sabor.trim()) { setAddSaborError('Informe o sabor'); return; }
+    setAddSaborError('');
+    setAddSaborSaving(true);
+    const rep = prods[0];
+    try {
+      const res = await fetch('/api/admin/catalogo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          marca,
+          tamanho,
+          sabor: addSaborForm.sabor.trim(),
+          descricao: addSaborForm.descricao.trim() || null,
+          emoji: addSaborForm.emoji.trim() || null,
+          valor: rep.valor,
+          custo: rep.custo ?? 0,
+          estoque: Number(addSaborForm.estoque),
+          foto_url: rep.foto_url ?? null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setAddSaborError(data.error ?? 'Erro ao criar'); return; }
+      setProdutos((prev) => [...prev, {
+        id: data.id,
+        marca,
+        tamanho,
+        sabor: addSaborForm.sabor.trim(),
+        descricao: addSaborForm.descricao.trim() || null,
+        valor: rep.valor,
+        custo: rep.custo ?? 0,
+        estoque: Number(addSaborForm.estoque),
+        emoji: addSaborForm.emoji.trim() || null,
+        ativo: 1,
+        novo: false,
+        foto_url: rep.foto_url ?? null,
+      }]);
+      setAddSaborForm({ sabor: '', descricao: '', emoji: '', estoque: '0' });
+      setAddSaborKey(null);
+    } catch { setAddSaborError('Erro de conexão'); }
+    finally { setAddSaborSaving(false); }
+  }
+
   // ── Estoque helpers ──────────────────────────────────────────
   function onSliderChange(id: number, val: number) {
     setPendingStock((prev) => ({ ...prev, [id]: val }));
@@ -1091,9 +1140,9 @@ export default function AdminClient({ produtos: initial }: Props) {
               {/* Linha 1: Todas / Entregas / Retiradas */}
               <div className="flex gap-1.5">
                 {([
-                  { key: 'all',      label: 'Todos',     count: pedidos.length },
-                  { key: 'entrega',  label: 'Entregas',  count: pedidos.filter((p) => p.modalidade === 'entrega').length },
-                  { key: 'retirada', label: 'Retiradas', count: pedidos.filter((p) => p.modalidade === 'retirada').length },
+                  { key: 'all',      label: 'Todos',     count: pedidos.filter((p) => p.status !== 'cancelado').length },
+                  { key: 'entrega',  label: 'Entregas',  count: pedidos.filter((p) => p.modalidade === 'entrega'  && p.status !== 'cancelado').length },
+                  { key: 'retirada', label: 'Retiradas', count: pedidos.filter((p) => p.modalidade === 'retirada' && p.status !== 'cancelado').length },
                 ] as const).map(({ key, label, count }) => {
                   const isActive = modalidadeFiltro === key;
                   return (
@@ -1434,8 +1483,64 @@ export default function AdminClient({ produtos: initial }: Props) {
                               const isDirty = editData !== undefined;
                               const isSaving = savingPreco[key];
                               const isSaved = savedPreco[key];
+                              const grupoFoto = prods.find((p) => p.foto_url)?.foto_url ?? null;
                               return (
                                 <div className="flex items-center gap-2">
+                                  {/* Foto do grupo (marca+tamanho) */}
+                                  <label className="relative flex-shrink-0 cursor-pointer group" title="Alterar foto do produto">
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      className="hidden"
+                                      onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (!file) return;
+                                        const reader = new FileReader();
+                                        reader.onload = () => {
+                                          const img = new Image();
+                                          img.onload = () => {
+                                            const MAX = 700;
+                                            let { width, height } = img;
+                                            if (width > height) {
+                                              if (width > MAX) { height = Math.round((height * MAX) / width); width = MAX; }
+                                            } else {
+                                              if (height > MAX) { width = Math.round((width * MAX) / height); height = MAX; }
+                                            }
+                                            const canvas = document.createElement('canvas');
+                                            canvas.width = width; canvas.height = height;
+                                            canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
+                                            const dataUrl = canvas.toDataURL('image/webp', 0.82);
+                                            Promise.all(prods.map((p) =>
+                                              fetch(`/api/admin/catalogo/${p.id}`, {
+                                                method: 'PATCH',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ foto_url: dataUrl }),
+                                              })
+                                            )).then(() => {
+                                              setProdutos((prev) => prev.map((x) =>
+                                                prods.some((p) => p.id === x.id) ? { ...x, foto_url: dataUrl } : x
+                                              ));
+                                            });
+                                          };
+                                          img.src = reader.result as string;
+                                        };
+                                        reader.readAsDataURL(file);
+                                        e.target.value = '';
+                                      }}
+                                    />
+                                    {grupoFoto ? (
+                                      <div className="relative w-10 h-10">
+                                        <img src={grupoFoto} alt={tamanho} className="w-10 h-10 object-cover rounded-lg border border-[#3d3d4d]" />
+                                        <div className="absolute inset-0 rounded-lg bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                          <Pencil size={11} className="text-white" />
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="w-10 h-10 rounded-lg border border-dashed border-[#3d3d4d] flex items-center justify-center text-muted hover:border-primary/60 hover:text-primary transition-colors">
+                                        <Plus size={13} />
+                                      </div>
+                                    )}
+                                  </label>
                                   <div className="flex items-center gap-1">
                                     <span className="text-[10px] text-muted font-medium">R$</span>
                                     <input
@@ -1485,11 +1590,8 @@ export default function AdminClient({ produtos: initial }: Props) {
                             {prods.map((p: Produto) => (
                               <div key={p.id} className="flex flex-col">
                                 <div className="flex flex-col gap-0.5 px-1 pt-2 pb-1">
-                                  {/* Linha: foto + nome + ações */}
+                                  {/* Linha: nome + ações */}
                                   <div className="flex items-center gap-2">
-                                    {p.foto_url && (
-                                      <img src={p.foto_url} alt={p.sabor} className="w-10 h-10 object-cover rounded-lg flex-shrink-0 border border-[#3d3d4d]" />
-                                    )}
                                     <div className="flex-1 min-w-0">
                                       <div className="flex items-center gap-1.5">
                                         <p className="text-base font-semibold text-foreground truncate leading-tight">{p.sabor}</p>
@@ -1593,6 +1695,71 @@ export default function AdminClient({ produtos: initial }: Props) {
                               </div>
                             ))}
                           </div>
+
+                          {/* ── Adicionar sabor ao grupo ── */}
+                          {(() => {
+                            const key = `${marca}___${tamanho}`;
+                            const open = addSaborKey === key;
+                            return open ? (
+                              <div className="mt-2 pt-2 border-t border-[#3d3d4d] flex flex-col gap-2">
+                                <p className="text-[10px] font-bold text-primary uppercase tracking-wider">Novo sabor — {marca} {tamanho}</p>
+                                <div className="flex gap-2">
+                                  <input
+                                    autoFocus
+                                    placeholder="Sabor *"
+                                    value={addSaborForm.sabor}
+                                    onChange={(e) => setAddSaborForm((p) => ({ ...p, sabor: e.target.value }))}
+                                    className="flex-1 bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary focus:outline-none"
+                                  />
+                                  <input
+                                    placeholder="Emoji"
+                                    value={addSaborForm.emoji}
+                                    onChange={(e) => setAddSaborForm((p) => ({ ...p, emoji: e.target.value }))}
+                                    className="w-20 bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary focus:outline-none"
+                                  />
+                                  <input
+                                    type="number" min="0"
+                                    placeholder="Qtd"
+                                    value={addSaborForm.estoque}
+                                    onChange={(e) => setAddSaborForm((p) => ({ ...p, estoque: e.target.value }))}
+                                    className="w-16 bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary focus:outline-none"
+                                  />
+                                </div>
+                                <input
+                                  placeholder="Descrição (opcional)"
+                                  value={addSaborForm.descricao}
+                                  onChange={(e) => setAddSaborForm((p) => ({ ...p, descricao: e.target.value }))}
+                                  className="w-full bg-background border border-[#3d3d4d] rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary focus:outline-none"
+                                />
+                                {addSaborError && <p className="text-xs text-red-400">{addSaborError}</p>}
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => { setAddSaborKey(null); setAddSaborForm({ sabor: '', descricao: '', emoji: '', estoque: '0' }); setAddSaborError(''); }}
+                                    className="flex-1 border border-[#3d3d4d] text-muted rounded-xl py-2 text-xs font-semibold"
+                                  >
+                                    Cancelar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAddSabor(marca, tamanho, prods)}
+                                    disabled={addSaborSaving}
+                                    className="flex-1 bg-primary text-white rounded-xl py-2 text-xs font-bold disabled:opacity-50"
+                                  >
+                                    {addSaborSaving ? 'Salvando...' : 'Adicionar'}
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => { setAddSaborKey(key); setAddSaborForm({ sabor: '', descricao: '', emoji: '', estoque: '0' }); setAddSaborError(''); }}
+                                className="mt-2 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-xl border border-dashed border-[#3d3d4d] text-[11px] font-semibold text-muted hover:border-primary/50 hover:text-primary transition-colors"
+                              >
+                                <Plus size={12} /> Adicionar sabor
+                              </button>
+                            );
+                          })()}
                         </div>
                       );
                     })}

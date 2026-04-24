@@ -3,7 +3,7 @@
 import { useState, useEffect, FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, User, Mail, Phone, MapPin, Plus, X, Star, ShieldCheck, LogOut, ShoppingBag } from 'lucide-react';
+import { ArrowLeft, User, Mail, Phone, MapPin, Plus, X, Star, ShieldCheck, LogOut, ShoppingBag, Pencil } from 'lucide-react';
 import BottomNav from '@/components/BottomNav';
 import { useAuth } from '@/context/AuthContext';
 import { maskCep, ESTADOS, formatPrice } from '@/lib/utils';
@@ -48,6 +48,57 @@ export default function ProfileClient({ usuario, enderecos: initial }: Props) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [switchingId, setSwitchingId] = useState<number | null>(null);
+
+  // ── Editar perfil ──────────────────────────────────────────
+  const [editOpen, setEditOpen] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState('');
+  const [editSuccess, setEditSuccess] = useState(false);
+  const [editForm, setEditForm] = useState({
+    nome_completo: '',
+    email: '',
+    telefone: '',
+    senha_atual: '',
+    nova_senha: '',
+  });
+  const [usuarioLocal, setUsuarioLocal] = useState<Usuario | null>(usuario);
+
+  function openEdit() {
+    if (!usuarioLocal) return;
+    setEditForm({
+      nome_completo: usuarioLocal.nome_completo,
+      email: usuarioLocal.email,
+      telefone: usuarioLocal.telefone ?? '',
+      senha_atual: '',
+      nova_senha: '',
+    });
+    setEditError('');
+    setEditSuccess(false);
+    setEditOpen(true);
+  }
+
+  async function handleEditSave(e: FormEvent) {
+    e.preventDefault();
+    setEditError('');
+    setEditSuccess(false);
+    setEditSaving(true);
+    try {
+      const res = await fetch('/api/user/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editForm),
+      });
+      const data = await res.json();
+      if (!res.ok) { setEditError(data.error ?? 'Erro ao salvar'); return; }
+      setUsuarioLocal((prev) => prev ? { ...prev, nome_completo: editForm.nome_completo, email: editForm.email, telefone: editForm.telefone } : prev);
+      setEditSuccess(true);
+      setTimeout(() => { setEditOpen(false); setEditSuccess(false); router.refresh(); }, 1200);
+    } catch {
+      setEditError('Erro de conexão');
+    } finally {
+      setEditSaving(false);
+    }
+  }
 
   interface PedidoResumo {
     id: number;
@@ -94,7 +145,8 @@ export default function ProfileClient({ usuario, enderecos: initial }: Props) {
     await logout();
   }
 
-  if (!usuario) {
+  const u = usuarioLocal ?? usuario;
+  if (!u) {
     return (
       <div className="flex flex-col min-h-screen pb-20 md:pb-6">
         <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b border-[#3d3d4d] py-4">
@@ -124,7 +176,7 @@ export default function ProfileClient({ usuario, enderecos: initial }: Props) {
     );
   }
 
-  const initials = usuario.nome_completo
+  const initials = u.nome_completo
     .split(' ')
     .map((w) => w[0])
     .filter(Boolean)
@@ -242,8 +294,8 @@ export default function ProfileClient({ usuario, enderecos: initial }: Props) {
               )}
             </div>
             <div className="text-center">
-              <p className="text-base font-bold text-foreground">{usuario.nome_completo || usuario.username}</p>
-              {usuario.is_admin && (
+              <p className="text-base font-bold text-foreground">{u.nome_completo || u.username}</p>
+              {u.is_admin && (
                 <Link href="/admin" className="flex items-center gap-1 text-xs font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full hover:bg-primary/20">
                   <ShieldCheck size={12} /> Admin
                 </Link>
@@ -253,13 +305,21 @@ export default function ProfileClient({ usuario, enderecos: initial }: Props) {
 
           {/* Info card */}
           <div className="bg-surface border border-[#3d3d4d] rounded-2xl p-4 flex flex-col gap-3">
-            <h2 className="text-sm font-semibold text-foreground">Informações da conta</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-foreground">Informações da conta</h2>
+              <button
+                onClick={openEdit}
+                className="flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 px-3 py-1.5 rounded-xl hover:bg-primary/20 active:scale-95 transition-all"
+              >
+                <Pencil size={12} /> Editar
+              </button>
+            </div>
 
             <div className="flex items-center gap-3">
               <User size={16} className="text-muted flex-shrink-0" />
               <div>
                 <p className="text-[10px] text-muted uppercase tracking-wide">Usuário</p>
-                <p className="text-sm text-foreground">@{usuario.username}</p>
+                <p className="text-sm text-foreground">@{u.username}</p>
               </div>
             </div>
 
@@ -267,16 +327,16 @@ export default function ProfileClient({ usuario, enderecos: initial }: Props) {
               <Mail size={16} className="text-muted flex-shrink-0" />
               <div>
                 <p className="text-[10px] text-muted uppercase tracking-wide">E-mail</p>
-                <p className="text-sm text-foreground">{usuario.email}</p>
+                <p className="text-sm text-foreground">{u.email}</p>
               </div>
             </div>
 
-            {usuario.telefone && (
+            {u.telefone && (
               <div className="flex items-center gap-3">
                 <Phone size={16} className="text-muted flex-shrink-0" />
                 <div>
                   <p className="text-[10px] text-muted uppercase tracking-wide">Telefone</p>
-                  <p className="text-sm text-foreground">{usuario.telefone}</p>
+                  <p className="text-sm text-foreground">{u.telefone}</p>
                 </div>
               </div>
             )}
@@ -405,6 +465,106 @@ export default function ProfileClient({ usuario, enderecos: initial }: Props) {
 
         <BottomNav />
       </div>
+
+      {/* Modal editar perfil */}
+      {editOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-end md:items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.6)' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setEditOpen(false); }}
+        >
+          <div
+            className="w-full max-w-mobile md:max-w-lg rounded-t-3xl md:rounded-3xl flex flex-col"
+            style={{ background: '#1f1f2e', border: '1px solid #3d3d4d', maxHeight: '90vh' }}
+          >
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 flex-shrink-0">
+              <h3 className="text-base font-bold text-foreground">Editar dados</h3>
+              <button onClick={() => setEditOpen(false)} className="text-muted hover:text-foreground">
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditSave} className="overflow-y-auto px-5 pb-8 flex flex-col gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-muted uppercase tracking-wide">Nome completo *</label>
+                <input
+                  required
+                  value={editForm.nome_completo}
+                  onChange={(e) => setEditForm((p) => ({ ...p, nome_completo: e.target.value }))}
+                  className="bg-background border border-[#3d3d4d] rounded-xl px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-muted uppercase tracking-wide">E-mail *</label>
+                <input
+                  required
+                  type="email"
+                  value={editForm.email}
+                  onChange={(e) => setEditForm((p) => ({ ...p, email: e.target.value }))}
+                  className="bg-background border border-[#3d3d4d] rounded-xl px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-muted uppercase tracking-wide">Telefone *</label>
+                <input
+                  required
+                  type="tel"
+                  value={editForm.telefone}
+                  onChange={(e) => setEditForm((p) => ({ ...p, telefone: e.target.value }))}
+                  className="bg-background border border-[#3d3d4d] rounded-xl px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              <div className="h-px bg-[#3d3d4d]" />
+              <p className="text-xs text-muted">Deixe em branco para não alterar a senha</p>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-muted uppercase tracking-wide">Senha atual</label>
+                <input
+                  type="password"
+                  value={editForm.senha_atual}
+                  onChange={(e) => setEditForm((p) => ({ ...p, senha_atual: e.target.value }))}
+                  placeholder="••••••"
+                  className="bg-background border border-[#3d3d4d] rounded-xl px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-muted uppercase tracking-wide">Nova senha</label>
+                <input
+                  type="password"
+                  value={editForm.nova_senha}
+                  onChange={(e) => setEditForm((p) => ({ ...p, nova_senha: e.target.value }))}
+                  placeholder="Mínimo 6 caracteres"
+                  className="bg-background border border-[#3d3d4d] rounded-xl px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              {editError && (
+                <p className="text-xs font-medium rounded-xl px-3 py-2" style={{ background: '#3b1a1a', color: '#f87171' }}>
+                  {editError}
+                </p>
+              )}
+              {editSuccess && (
+                <p className="text-xs font-medium rounded-xl px-3 py-2 text-green-400 bg-green-400/10">
+                  Dados atualizados com sucesso!
+                </p>
+              )}
+
+              <button
+                type="submit"
+                disabled={editSaving || editSuccess}
+                className="w-full py-3.5 rounded-2xl text-white font-bold text-sm disabled:opacity-60"
+                style={{ background: 'linear-gradient(135deg, #a78bfa, #7c3aed)' }}
+              >
+                {editSaving ? 'Salvando...' : editSuccess ? 'Salvo!' : 'Salvar alterações'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Modal novo endereço */}
       {modalOpen && (

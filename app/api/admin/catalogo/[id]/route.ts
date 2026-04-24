@@ -14,7 +14,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id: rawId } = await params;
   const id = Number(rawId);
   const body = await req.json();
-  const { estoque, novo, valor, custo, ativo } = body;
+  const { estoque, novo, valor, custo, ativo, foto_url } = body;
 
   if (estoque !== undefined) {
     if (isNaN(Number(estoque))) return NextResponse.json({ error: 'estoque invalido' }, { status: 400 });
@@ -23,6 +23,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     await db.query('UPDATE catalogo SET novo = $1 WHERE id = $2', [Boolean(novo), id]);
   } else if (ativo !== undefined) {
     await db.query('UPDATE catalogo SET ativo = $1 WHERE id = $2', [Boolean(ativo), id]);
+  } else if (foto_url !== undefined) {
+    await db.query('UPDATE catalogo SET foto_url = $1 WHERE id = $2', [foto_url || null, id]);
   } else if (valor !== undefined || custo !== undefined) {
     const fields: string[] = [];
     const vals: unknown[] = [];

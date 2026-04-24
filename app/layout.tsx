@@ -15,8 +15,8 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: 'PODBAY — Sua loja de vape',
-  description: 'A melhor loja de vape online. Pods, baterias, líquidos e acessórios.',
+  title: 'PODBAY — Sua loja de PODs',
+  description: 'Seu delivery favorito de PODs',
 };
 
 export const viewport: Viewport = {
